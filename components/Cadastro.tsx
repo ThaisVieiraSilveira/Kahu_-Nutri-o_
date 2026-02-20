@@ -57,10 +57,31 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData) {
       if (!formData.pet_nome) return alert("Por favor, informe o nome do pet.");
+      
+      try {
+        // Call backend API to save to Google Sheets
+        const response = await fetch('/api/save-pet', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to save to Google Sheets:', errorData.error);
+          // We still proceed with local save even if Google Sheets fails, 
+          // but we log the error.
+        }
+      } catch (error) {
+        console.error('Error calling save-pet API:', error);
+      }
+
       onSave(formData);
       setIsSaved(true);
       setTimeout(() => {
