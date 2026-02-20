@@ -120,11 +120,11 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
           </div>
         </section>
 
-        {/* NICHO: SAÚDE E ALERTAS */}
+        {/* NICHO: SAÚDE DETALHADA */}
         <section className="bg-white rounded-[35px] p-8 shadow-sm border border-slate-100 space-y-6">
           <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
             <span className="w-10 h-10 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center text-xl shadow-sm">🏥</span>
-            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">SAÚDE E ALERTAS</h3>
+            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">SAÚDE DETALHADA</h3>
           </div>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -134,6 +134,22 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
             <Field label="ALIMENTOS PROIBIDOS" name="alimentos_proibidos" value={formData.alimentos_proibidos} onChange={handleChange} />
             <Field label="HISTÓRICO DE DOENÇA" name="doenca_qual" value={formData.doenca_qual} onChange={handleChange} />
             <Select label="ESCORE CORPORAL" name="escore_corporal" value={formData.escore_corporal} onChange={handleChange} options={['Magro', 'Ideal', 'Um pouco acima', 'Acima do peso', 'Obesidade']} />
+          </div>
+        </section>
+
+        {/* NICHO: HIDRATAÇÃO */}
+        <section className="bg-white rounded-[35px] p-8 shadow-sm border border-slate-100 space-y-6">
+          <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+            <span className="w-10 h-10 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-xl shadow-sm">💧</span>
+            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">HIDRATAÇÃO</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="INGESTÃO DE ÁGUA" name="ingestao_agua" value={formData.ingestao_agua} onChange={handleChange} />
+              <Field label="INTERESSE EM ÁGUA" name="interesse_agua" value={formData.interesse_agua} onChange={handleChange} />
+            </div>
+            <Field label="PRECISA DE AJUDA PARA BEBER?" name="ajuda_beber_agua" value={formData.ajuda_beber_agua} onChange={handleChange} />
+            <Select label="SEDE PÓS CRECHE?" name="sede_pos_creche" value={formData.sede_pos_creche} onChange={handleChange} options={['Não', 'Sim', 'Moderada', 'Muita']} />
           </div>
         </section>
 

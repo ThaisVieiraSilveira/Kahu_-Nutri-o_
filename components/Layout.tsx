@@ -52,9 +52,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </header>
 
-      <main className="flex-grow max-w-4xl w-full mx-auto p-4 pb-24 md:pb-8">
+      <main className="flex-grow max-w-4xl w-full mx-auto p-4 pb-8">
         {children}
       </main>
+
+      <footer className="w-full py-6 text-center text-slate-400 text-[10px] uppercase tracking-widest font-bold border-t border-slate-100 bg-white pb-24 md:pb-6">
+        <p>© {new Date().getFullYear()} Kahu Care. Todos os direitos reservados.</p>
+      </footer>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2 flex justify-around items-center z-50">
         {navItems.map((item) => (
