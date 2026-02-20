@@ -12,14 +12,21 @@ import ChecklistLooker from './components/ChecklistLooker';
 import Groups from './components/Groups';
 import Cadastro from './components/Cadastro';
 import Settings from './components/Settings';
+import Login from './components/Login';
 
 const App: React.FC = () => {
   const [pets, setPets] = useState<Pet[]>([]);
   const [checklists, setChecklists] = useState<ChecklistEntry[]>([]);
   const [groups, setGroups] = useState<PetGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    const authStatus = localStorage.getItem('kahu_authenticated');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
+
     const init = async () => {
       try {
         const basePets = await fetchPets();
@@ -143,6 +150,11 @@ const App: React.FC = () => {
     });
   };
 
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    localStorage.setItem('kahu_authenticated', 'true');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center">
@@ -151,6 +163,10 @@ const App: React.FC = () => {
         <p className="text-emerald-600 font-bold animate-pulse mt-2">Sincronizando a matilha...</p>
       </div>
     );
+  }
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
   }
 
   return (
