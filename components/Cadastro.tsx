@@ -11,6 +11,7 @@ interface CadastroProps {
 const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
   const { petId } = useParams();
   const navigate = useNavigate();
+  const isNew = petId === 'novo';
   const [formData, setFormData] = useState<Pet | null>(null);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -103,8 +104,6 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
   };
 
   if (!formData) return <div className="p-20 text-center font-black animate-pulse uppercase">Pet não encontrado...</div>;
-
-  const isNew = petId === 'novo';
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-32 animate-in fade-in slide-in-from-bottom-4">
