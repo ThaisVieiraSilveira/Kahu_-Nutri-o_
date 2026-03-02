@@ -137,7 +137,38 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
             <Field label="RAÇA" name="raca" value={formData.raca || ''} onChange={handleChange} />
             <Field label="NOME DO TUTOR" name="tutor_nome" value={formData.tutor_nome || ''} onChange={handleChange} />
             <Field label="TELEFONE" name="telefone" value={formData.telefone || ''} onChange={handleChange} />
-            <Field label="AGENDA (Ex: Segunda, Quarta)" name="dia_semana" value={formData.dia_semana} onChange={handleChange} />
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-2">AGENDA (DIAS NA CRECHE)</label>
+              <div className="grid grid-cols-3 gap-2 p-2 bg-slate-50 rounded-[20px] border-2 border-slate-100">
+                {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map(day => {
+                  const isSelected = (formData.dia_semana || '').includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const currentDays = (formData.dia_semana || '').split(',').map(d => d.trim()).filter(Boolean);
+                        let newDays;
+                        if (currentDays.includes(day)) {
+                          newDays = currentDays.filter(d => d !== day);
+                        } else {
+                          newDays = [...currentDays, day];
+                        }
+                        setFormData({ ...formData, dia_semana: newDays.join(', ') });
+                      }}
+                      className={`py-2 rounded-xl text-[10px] font-black transition-all ${
+                        isSelected 
+                          ? 'bg-emerald-500 text-white shadow-md' 
+                          : 'bg-white text-slate-400 hover:bg-emerald-50'
+                      }`}
+                    >
+                      {day.toUpperCase()}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </section>
 

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Pet, PetGroup } from '../types';
 
 interface GroupsProps {
@@ -9,7 +10,9 @@ interface GroupsProps {
 }
 
 const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
+  const navigate = useNavigate();
   const [editingGroup, setEditingGroup] = useState<Partial<PetGroup> | null>(null);
+  const [viewingGroup, setViewingGroup] = useState<PetGroup | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const colors = [
@@ -60,15 +63,17 @@ const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
           <h2 className="text-3xl font-black text-sky-900 mb-1">Meus Grupos</h2>
           <p className="text-sky-700/70 font-medium">Organize a matilha por comportamento ou dieta 📂</p>
         </div>
-        <button 
-          onClick={handleCreateGroup}
-          className="bg-sky-500 text-white px-6 py-3 rounded-full font-black shadow-lg shadow-sky-200 hover:scale-105 active:scale-95 transition-all"
-        >
-          + CRIAR GRUPO
-        </button>
+        {!editingGroup && !viewingGroup && (
+          <button 
+            onClick={handleCreateGroup}
+            className="bg-sky-500 text-white px-6 py-3 rounded-full font-black shadow-lg shadow-sky-200 hover:scale-105 active:scale-95 transition-all"
+          >
+            + CRIAR GRUPO
+          </button>
+        )}
       </div>
 
-      {!editingGroup ? (
+      {!editingGroup && !viewingGroup ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {groups.length === 0 ? (
             <div className="col-span-full py-20 text-center bg-white rounded-[40px] border-4 border-dashed border-sky-100">
@@ -77,7 +82,11 @@ const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
             </div>
           ) : (
             groups.map(group => (
-              <div key={group.id} className="bg-white p-6 rounded-[32px] border border-sky-50 shadow-sm flex flex-col group">
+              <div 
+                key={group.id} 
+                onClick={() => setViewingGroup(group)}
+                className="bg-white p-6 rounded-[32px] border border-sky-50 shadow-sm flex flex-col group cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all"
+              >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
                     <div className={`w-4 h-4 rounded-full ${group.color}`}></div>
@@ -85,13 +94,13 @@ const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
                   </div>
                   <div className="flex gap-2">
                     <button 
-                      onClick={() => setEditingGroup(group)}
+                      onClick={(e) => { e.stopPropagation(); setEditingGroup(group); }}
                       className="p-2 text-sky-400 hover:bg-sky-50 rounded-full transition-colors"
                     >
                       ✏️
                     </button>
                     <button 
-                      onClick={() => deleteGroup(group.id)}
+                      onClick={(e) => { e.stopPropagation(); deleteGroup(group.id); }}
                       className="p-2 text-rose-400 hover:bg-rose-50 rounded-full transition-colors"
                     >
                       🗑️
@@ -112,10 +121,71 @@ const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
                       </span>
                     )}
                   </div>
+                  <p className="text-[9px] font-black text-sky-400 uppercase tracking-widest mt-3 text-center opacity-0 group-hover:opacity-100 transition-opacity">Clique para ver todos 👁️</p>
                 </div>
               </div>
             ))
           )}
+        </div>
+      ) : viewingGroup ? (
+        <div className="bg-white rounded-[40px] p-8 shadow-xl border border-sky-50 space-y-8 animate-in slide-in-from-bottom-4">
+          <div className="flex justify-between items-center border-b border-slate-50 pb-6">
+            <div className="flex items-center gap-4">
+              <div className={`w-6 h-6 rounded-full ${viewingGroup.color}`}></div>
+              <h3 className="text-3xl font-black text-slate-800">{viewingGroup.name}</h3>
+            </div>
+            <button 
+              onClick={() => setViewingGroup(null)}
+              className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {viewingGroup.petIds.length === 0 ? (
+              <div className="col-span-full py-10 text-center text-slate-300 font-bold italic">
+                Nenhum pet neste grupo ainda.
+              </div>
+            ) : (
+              viewingGroup.petIds.map(id => {
+                const pet = pets.find(p => p.id === id);
+                if (!pet) return null;
+                return (
+                  <div 
+                    key={id}
+                    onClick={() => navigate(`/pet/${pet.id}`)}
+                    className="flex items-center gap-4 p-4 bg-slate-50 rounded-3xl border border-transparent hover:border-sky-200 hover:bg-white transition-all cursor-pointer group"
+                  >
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">🐶</div>
+                    <div>
+                      <p className="font-black text-slate-800 group-hover:text-sky-600 transition-colors">{pet.pet_nome}</p>
+                      <p className="text-[10px] font-bold text-slate-300 uppercase">{pet.id} • {pet.raca}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="flex gap-4 pt-4">
+            <button 
+              onClick={() => {
+                const groupToEdit = viewingGroup;
+                setViewingGroup(null);
+                setEditingGroup(groupToEdit);
+              }}
+              className="flex-1 py-4 bg-sky-50 text-sky-600 rounded-2xl font-black hover:bg-sky-100 transition-colors"
+            >
+              EDITAR GRUPO ✏️
+            </button>
+            <button 
+              onClick={() => setViewingGroup(null)}
+              className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black hover:bg-slate-900 transition-colors"
+            >
+              VOLTAR ↩
+            </button>
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-[40px] p-8 shadow-xl border border-sky-50 space-y-8 animate-in slide-in-from-bottom-4">

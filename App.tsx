@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { fetchPets } from './services/api';
 import { Pet, ChecklistEntry, PetGroup } from './types';
+import { isPetOnDay } from './utils/date';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import PetChecklist from './components/PetChecklist';
@@ -112,10 +113,39 @@ const App: React.FC = () => {
         newPets = [...prev, updatedPet];
       }
       
-      // We only store the "modified" or "new" pets in localStorage to keep it clean
-      // but for simplicity, we store the full overridden list
       localStorage.setItem('kahu_master_pets', JSON.stringify(newPets));
       return newPets;
+    });
+
+    // Auto-sync with day groups (g_seg, g_ter, etc)
+    setGroups(prev => {
+      const dayMap: Record<string, string> = {
+        'g_seg': 'Segunda',
+        'g_ter': 'Terça',
+        'g_qua': 'Quarta',
+        'g_qui': 'Quinta',
+        'g_sex': 'Sexta',
+        'g_sab': 'Sábado'
+      };
+
+      const updatedGroups = prev.map(group => {
+        const targetDay = dayMap[group.id];
+        if (targetDay) {
+          const isOnDay = isPetOnDay(updatedPet, targetDay);
+          const currentIds = group.petIds || [];
+          const hasPet = currentIds.includes(updatedPet.id);
+
+          if (isOnDay && !hasPet) {
+            return { ...group, petIds: [...currentIds, updatedPet.id] };
+          } else if (!isOnDay && hasPet) {
+            return { ...group, petIds: currentIds.filter(id => id !== updatedPet.id) };
+          }
+        }
+        return group;
+      });
+
+      localStorage.setItem('kahu_groups', JSON.stringify(updatedGroups));
+      return updatedGroups;
     });
   };
 
