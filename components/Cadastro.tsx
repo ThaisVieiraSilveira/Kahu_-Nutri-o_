@@ -15,9 +15,20 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
-    if (petId === 'novo') {
-      // Logic for new pet: Auto-generate ID based on current list length
-      const nextId = pets.length + 1;
+    if (formData && !isNew) {
+      const pet = pets.find(p => p.id === petId);
+      if (pet) setFormData({ ...pet });
+      return;
+    }
+
+    if (isNew && !formData) {
+      // Logic for new pet: Find the highest ID number to avoid collisions
+      const maxId = pets.reduce((max, p) => {
+        const num = parseInt(p.id.replace(/\D/g, '')) || 0;
+        return Math.max(max, num);
+      }, 0);
+      const nextId = maxId + 1;
+      
       setFormData({
         id: `PET${String(nextId).padStart(3, '0')}`,
         pet_nome: '',
@@ -45,11 +56,11 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
         escore_corporal: 'Ideal',
         observacoes: ''
       });
-    } else {
+    } else if (!isNew) {
       const pet = pets.find(p => p.id === petId);
       if (pet) setFormData({ ...pet });
     }
-  }, [petId, pets]);
+  }, [petId, pets, isNew]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (!formData) return;
