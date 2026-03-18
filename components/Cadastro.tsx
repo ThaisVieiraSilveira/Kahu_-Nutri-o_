@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Pet } from '../types';
 
 interface CadastroProps {
@@ -11,9 +11,13 @@ interface CadastroProps {
 const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
   const { petId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const isNew = petId === 'novo';
   const [formData, setFormData] = useState<Pet | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+
+  const queryParams = new URLSearchParams(location.search);
+  const redirectPath = queryParams.get('redirect');
 
   useEffect(() => {
     if (formData && !isNew) {
@@ -98,7 +102,13 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
       setIsSaved(true);
       setTimeout(() => {
         setIsSaved(false);
-        if (petId === 'novo') navigate('/cadastro');
+        if (petId === 'novo') {
+          if (redirectPath === 'hotel') {
+            navigate('/hotel');
+          } else {
+            navigate('/cadastro');
+          }
+        }
       }, 1500);
     }
   };

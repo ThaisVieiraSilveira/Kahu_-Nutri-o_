@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { fetchPets } from './services/api';
-import { Pet, ChecklistEntry, PetGroup } from './types';
 import { isPetOnDay } from './utils/date';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -12,13 +11,19 @@ import CadastroLooker from './components/CadastroLooker';
 import ChecklistLooker from './components/ChecklistLooker';
 import Groups from './components/Groups';
 import Cadastro from './components/Cadastro';
+import Medication from './components/Medication';
+import Hotel from './components/Hotel';
 import Settings from './components/Settings';
 import Login from './components/Login';
+import { Pet, ChecklistEntry, PetGroup, Medication as MedicationType, MedicationLog, HotelStay } from './types';
 
 const App: React.FC = () => {
   const [pets, setPets] = useState<Pet[]>([]);
   const [checklists, setChecklists] = useState<ChecklistEntry[]>([]);
   const [groups, setGroups] = useState<PetGroup[]>([]);
+  const [medications, setMedications] = useState<MedicationType[]>([]);
+  const [medicationLogs, setMedicationLogs] = useState<MedicationLog[]>([]);
+  const [hotelStays, setHotelStays] = useState<HotelStay[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -85,6 +90,15 @@ const App: React.FC = () => {
           setGroups(initialGroups);
           localStorage.setItem('kahu_groups', JSON.stringify(initialGroups));
         }
+
+        const storedMeds = localStorage.getItem('kahu_medications');
+        if (storedMeds) setMedications(JSON.parse(storedMeds));
+
+        const storedMedLogs = localStorage.getItem('kahu_medication_logs');
+        if (storedMedLogs) setMedicationLogs(JSON.parse(storedMedLogs));
+
+        const storedHotel = localStorage.getItem('kahu_hotel_stays');
+        if (storedHotel) setHotelStays(JSON.parse(storedHotel));
       } catch (e) {
         console.error("Erro ao carregar Kahu Care:", e);
       } finally {
@@ -154,6 +168,55 @@ const App: React.FC = () => {
     localStorage.setItem('kahu_groups', JSON.stringify(newGroups));
   };
 
+  const saveMedication = (med: MedicationType) => {
+    setMedications(prev => {
+      const filtered = prev.filter(m => m.id !== med.id);
+      const updated = [...filtered, med];
+      localStorage.setItem('kahu_medications', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const deleteMedication = (id: string) => {
+    setMedications(prev => {
+      const updated = prev.filter(m => m.id !== id);
+      localStorage.setItem('kahu_medications', JSON.stringify(updated));
+      return updated;
+    });
+    // Also cleanup logs
+    setMedicationLogs(prev => {
+      const updated = prev.filter(l => l.medicationId !== id);
+      localStorage.setItem('kahu_medication_logs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const saveMedicationLog = (log: MedicationLog) => {
+    setMedicationLogs(prev => {
+      const filtered = prev.filter(l => !(l.medicationId === log.medicationId && l.date === log.date));
+      const updated = [...filtered, log];
+      localStorage.setItem('kahu_medication_logs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const saveHotelStay = (stay: HotelStay) => {
+    setHotelStays(prev => {
+      const filtered = prev.filter(s => s.id !== stay.id);
+      const updated = [...filtered, stay];
+      localStorage.setItem('kahu_hotel_stays', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const deleteHotelStay = (id: string) => {
+    setHotelStays(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      localStorage.setItem('kahu_hotel_stays', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const deletePet = (petId: string) => {
     // Adiciona ao registro de deletados para persistência
     const storedDeleted = localStorage.getItem('kahu_deleted_pets');
@@ -208,6 +271,8 @@ const App: React.FC = () => {
           <Route path="/checklist_looker" element={<ChecklistLooker pets={pets} checklists={checklists} />} />
           <Route path="/cadastro/:petId" element={<Cadastro pets={pets} onSave={updatePetMaster} />} />
           <Route path="/grupos" element={<Groups pets={pets} groups={groups} onSaveGroups={saveGroups} />} />
+          <Route path="/medicacao" element={<Medication pets={pets} medications={medications} medicationLogs={medicationLogs} onSaveMedication={saveMedication} onDeleteMedication={deleteMedication} onSaveLog={saveMedicationLog} />} />
+          <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} />} />
           <Route path="/pet/:petId" element={<PetChecklist pets={pets} checklists={checklists} onSave={saveChecklist} onUpdatePet={updatePetMaster} />} />
           <Route path="/relatorios" element={<Reports pets={pets} checklists={checklists} />} />
           <Route path="/settings" element={<Settings />} />

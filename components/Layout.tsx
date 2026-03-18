@@ -8,6 +8,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navItems = [
     { path: '/', label: 'Painel', icon: '🐾' },
     { path: '/cadastro', label: 'Cadastro', icon: '📝' },
+    { path: '/medicacao', label: 'Medicação', icon: '💊' },
+    { path: '/hotel', label: 'Hotel', icon: '🏨' },
     { path: '/relatorios', label: 'Mensagens', icon: '💬' },
     { path: '/settings', label: 'Ajustes', icon: '⚙️' },
   ];

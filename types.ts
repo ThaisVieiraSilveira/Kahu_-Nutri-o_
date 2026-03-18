@@ -64,6 +64,37 @@ export interface PetGroup {
   color: string;
 }
 
+export interface Medication {
+  id: string;
+  petId: string;
+  name: string;
+  dosage: string;
+  time: string;
+  frequency: '12h' | '24h' | 'outra';
+  startDate?: string;
+  endDate?: string;
+  instructions: string;
+  active: boolean;
+}
+
+export interface MedicationLog {
+  id: string;
+  medicationId: string;
+  petId: string;
+  date: string;
+  offered: boolean;
+  notes?: string;
+}
+
+export interface HotelStay {
+  id: string;
+  petId: string;
+  checkIn: string;
+  checkOut: string;
+  instructions: string;
+  active: boolean;
+}
+
 export const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', '-'];
 
 export const FECAL_SCORE_LABELS: Record<number, string> = {
