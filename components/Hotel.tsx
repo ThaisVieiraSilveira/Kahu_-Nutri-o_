@@ -12,6 +12,7 @@ interface HotelProps {
   onSaveStay: (stay: HotelStay) => void;
   onDeleteStay: (id: string) => void;
   onSaveMedLog: (log: MedicationLog) => void;
+  onSaveMedication: (med: Medication) => void;
 }
 
 const Hotel: React.FC<HotelProps> = ({
@@ -21,10 +22,22 @@ const Hotel: React.FC<HotelProps> = ({
   medicationLogs,
   onSaveStay,
   onDeleteStay,
-  onSaveMedLog
+  onSaveMedLog,
+  onSaveMedication
 }) => {
   const navigate = useNavigate();
   const [isAddingStay, setIsAddingStay] = useState(false);
+  const [isAddingMed, setIsAddingMed] = useState<string | null>(null); // petId
+  const [newMed, setNewMed] = useState<Partial<Medication>>({
+    name: '',
+    dosage: '',
+    time: '',
+    frequency: '24h',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: '',
+    instructions: '',
+    active: true
+  });
   const [newStay, setNewStay] = useState<Partial<HotelStay>>({
     petId: '',
     checkIn: new Date().toISOString().split('T')[0],
@@ -34,6 +47,39 @@ const Hotel: React.FC<HotelProps> = ({
   });
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const handleAddMedication = (petId: string) => {
+    if (!newMed.name || !newMed.time) {
+      alert('Por favor, preencha o nome e o horário do remédio.');
+      return;
+    }
+
+    const medication: Medication = {
+      id: Date.now().toString(),
+      petId,
+      name: newMed.name || '',
+      dosage: newMed.dosage || '',
+      time: newMed.time || '',
+      frequency: newMed.frequency || '24h',
+      startDate: newMed.startDate || '',
+      endDate: newMed.endDate || '',
+      instructions: newMed.instructions || '',
+      active: true
+    };
+
+    onSaveMedication(medication);
+    setNewMed({ 
+      name: '', 
+      dosage: '', 
+      time: '', 
+      frequency: '24h', 
+      startDate: new Date().toISOString().split('T')[0], 
+      endDate: '', 
+      instructions: '', 
+      active: true 
+    });
+    setIsAddingMed(null);
+  };
 
   const activeStays = useMemo(() => {
     return hotelStays.filter(s => s.active).map(stay => {
@@ -251,10 +297,98 @@ const Hotel: React.FC<HotelProps> = ({
 
                 {/* MEDICATIONS */}
                 <div>
-                  <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-indigo-400 rounded-full"></span>
-                    MEDICAÇÃO DO DIA
-                  </h4>
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <span className="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                      MEDICAÇÃO DO DIA
+                    </h4>
+                    <button 
+                      onClick={() => setIsAddingMed(stay.petId)}
+                      className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                    >
+                      + ADICIONAR REMÉDIO
+                    </button>
+                  </div>
+
+                  {/* ADD MEDICATION INLINE FORM */}
+                  <AnimatePresence>
+                    {isAddingMed === stay.petId && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mb-4"
+                      >
+                        <div className="bg-indigo-50/50 p-4 rounded-3xl border border-indigo-100 space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-black text-indigo-400 uppercase ml-1">Nome do Remédio</label>
+                              <input 
+                                type="text" 
+                                placeholder="Ex: Apoquel"
+                                value={newMed.name}
+                                onChange={(e) => setNewMed({...newMed, name: e.target.value})}
+                                className="w-full p-2 text-xs rounded-xl border border-indigo-100 outline-none focus:border-indigo-300"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-black text-indigo-400 uppercase ml-1">Horário</label>
+                              <input 
+                                type="time" 
+                                value={newMed.time}
+                                onChange={(e) => setNewMed({...newMed, time: e.target.value})}
+                                className="w-full p-2 text-xs rounded-xl border border-indigo-100 outline-none focus:border-indigo-300"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-black text-indigo-400 uppercase ml-1">Dose</label>
+                              <input 
+                                type="text" 
+                                placeholder="Ex: 1 comp"
+                                value={newMed.dosage}
+                                onChange={(e) => setNewMed({...newMed, dosage: e.target.value})}
+                                className="w-full p-2 text-xs rounded-xl border border-indigo-100 outline-none focus:border-indigo-300"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-black text-indigo-400 uppercase ml-1">Frequência</label>
+                              <select 
+                                value={newMed.frequency}
+                                onChange={(e) => setNewMed({...newMed, frequency: e.target.value as any})}
+                                className="w-full p-2 text-xs rounded-xl border border-indigo-100 outline-none focus:border-indigo-300"
+                              >
+                                <option value="24h">Uma vez ao dia (24h)</option>
+                                <option value="12h">A cada 12 horas</option>
+                              </select>
+                            </div>
+                            <div className="sm:col-span-2 space-y-1">
+                              <label className="text-[8px] font-black text-indigo-400 uppercase ml-1">Até quando dar o remédio?</label>
+                              <input 
+                                type="date" 
+                                value={newMed.endDate}
+                                onChange={(e) => setNewMed({...newMed, endDate: e.target.value})}
+                                className="w-full p-2 text-xs rounded-xl border border-indigo-100 outline-none focus:border-indigo-300"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => setIsAddingMed(null)}
+                              className="flex-1 py-2 bg-slate-200 text-slate-500 rounded-xl font-black text-[9px] uppercase tracking-widest"
+                            >
+                              Cancelar
+                            </button>
+                            <button 
+                              onClick={() => handleAddMedication(stay.petId)}
+                              className="flex-1 py-2 bg-indigo-500 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-200"
+                            >
+                              Salvar Medicação
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   
                   {stay.meds.length === 0 ? (
                     <p className="text-xs font-bold text-slate-400 italic">Sem remédios cadastrados para este pet.</p>

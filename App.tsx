@@ -266,13 +266,13 @@ const App: React.FC = () => {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Dashboard pets={pets} checklists={checklists} groups={groups} />} />
+          <Route path="/" element={<Dashboard pets={pets} checklists={checklists} groups={groups} onUpdatePet={updatePetMaster} />} />
           <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />
           <Route path="/checklist_looker" element={<ChecklistLooker pets={pets} checklists={checklists} />} />
           <Route path="/cadastro/:petId" element={<Cadastro pets={pets} onSave={updatePetMaster} />} />
           <Route path="/grupos" element={<Groups pets={pets} groups={groups} onSaveGroups={saveGroups} />} />
           <Route path="/medicacao" element={<Medication pets={pets} medications={medications} medicationLogs={medicationLogs} onSaveMedication={saveMedication} onDeleteMedication={deleteMedication} onSaveLog={saveMedicationLog} />} />
-          <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} />} />
+          <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} onSaveMedication={saveMedication} />} />
           <Route path="/pet/:petId" element={<PetChecklist pets={pets} checklists={checklists} onSave={saveChecklist} onUpdatePet={updatePetMaster} />} />
           <Route path="/relatorios" element={<Reports pets={pets} checklists={checklists} />} />
           <Route path="/settings" element={<Settings />} />
