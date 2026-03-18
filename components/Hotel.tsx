@@ -115,8 +115,12 @@ const Hotel: React.FC<HotelProps> = ({
     setIsAddingStay(false);
   };
 
-  const toggleMedication = (petId: string, medicationId: string) => {
-    const existingLog = medicationLogs.find(l => l.medicationId === medicationId && l.date === selectedDate);
+  const toggleMedication = (petId: string, medicationId: string, slot: number = 0) => {
+    const existingLog = medicationLogs.find(l => 
+      l.medicationId === medicationId && 
+      l.date === selectedDate &&
+      (l.slot === slot || (!l.slot && slot === 0))
+    );
     
     const log: MedicationLog = {
       id: existingLog?.id || Date.now().toString(),
@@ -124,13 +128,18 @@ const Hotel: React.FC<HotelProps> = ({
       petId,
       date: selectedDate,
       offered: !existingLog?.offered,
+      slot
     };
 
     onSaveMedLog(log);
   };
 
-  const isMedOffered = (medicationId: string) => {
-    return medicationLogs.find(l => l.medicationId === medicationId && l.date === selectedDate)?.offered || false;
+  const isMedOffered = (medicationId: string, slot: number = 0) => {
+    return medicationLogs.find(l => 
+      l.medicationId === medicationId && 
+      l.date === selectedDate &&
+      (l.slot === slot || (!l.slot && slot === 0))
+    )?.offered || false;
   };
 
   return (
@@ -394,34 +403,47 @@ const Hotel: React.FC<HotelProps> = ({
                     <p className="text-xs font-bold text-slate-400 italic">Sem remédios cadastrados para este pet.</p>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {stay.meds.map(med => {
-                        const offered = isMedOffered(med.id);
-                        return (
-                          <button
-                            key={med.id}
-                            onClick={() => toggleMedication(stay.petId, med.id)}
-                            className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${
-                              offered 
-                                ? 'bg-emerald-50 border-emerald-500 text-emerald-700' 
-                                : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'
-                            }`}
-                          >
-                            <div className="text-left">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black opacity-50">{med.time}</span>
-                                <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase">{med.frequency}</span>
-                                <span className="font-black text-sm">{med.name}</span>
+                      {stay.meds.flatMap(med => {
+                        const slots = med.frequency === '12h' ? [1, 2] : [0];
+                        return slots.map(slot => {
+                          const offered = isMedOffered(med.id, slot);
+                          
+                          let displayTime = med.time;
+                          if (med.frequency === '12h' && slot === 2) {
+                            const [hours, minutes] = med.time.split(':').map(Number);
+                            const newHours = (hours + 12) % 24;
+                            displayTime = `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                          }
+
+                          return (
+                            <button
+                              key={`${med.id}-${slot}`}
+                              onClick={() => toggleMedication(stay.petId, med.id, slot)}
+                              className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${
+                                offered 
+                                  ? 'bg-emerald-50 border-emerald-500 text-emerald-700' 
+                                  : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'
+                              }`}
+                            >
+                              <div className="text-left">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black opacity-50">{displayTime}</span>
+                                  <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase">
+                                    {med.frequency === '12h' ? `12h (Dose ${slot})` : med.frequency}
+                                  </span>
+                                  <span className="font-black text-sm">{med.name}</span>
+                                </div>
+                                <div className="flex flex-col mt-0.5">
+                                  <span className="text-[10px] font-bold opacity-60">{med.dosage}</span>
+                                  {med.endDate && (
+                                    <span className="text-[8px] font-black text-rose-400 uppercase">Até {new Date(med.endDate).toLocaleDateString()}</span>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex flex-col mt-0.5">
-                                <span className="text-[10px] font-bold opacity-60">{med.dosage}</span>
-                                {med.endDate && (
-                                  <span className="text-[8px] font-black text-rose-400 uppercase">Até {new Date(med.endDate).toLocaleDateString()}</span>
-                                )}
-                              </div>
-                            </div>
-                            <span className="text-xl">{offered ? '✅' : '💊'}</span>
-                          </button>
-                        );
+                              <span className="text-xl">{offered ? '✅' : '💊'}</span>
+                            </button>
+                          );
+                        });
                       })}
                     </div>
                   )}

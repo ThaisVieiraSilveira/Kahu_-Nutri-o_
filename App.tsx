@@ -193,7 +193,9 @@ const App: React.FC = () => {
 
   const saveMedicationLog = (log: MedicationLog) => {
     setMedicationLogs(prev => {
-      const filtered = prev.filter(l => !(l.medicationId === log.medicationId && l.date === log.date));
+      const filtered = prev.filter(l => 
+        !(l.medicationId === log.medicationId && l.date === log.date && (l.slot === log.slot || (!l.slot && !log.slot)))
+      );
       const updated = [...filtered, log];
       localStorage.setItem('kahu_medication_logs', JSON.stringify(updated));
       return updated;

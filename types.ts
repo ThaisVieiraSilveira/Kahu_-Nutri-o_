@@ -83,6 +83,7 @@ export interface MedicationLog {
   petId: string;
   date: string;
   offered: boolean;
+  slot?: number; // 0 for 24h, 1 or 2 for 12h
   notes?: string;
 }
 
