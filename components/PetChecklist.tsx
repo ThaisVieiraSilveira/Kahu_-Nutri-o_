@@ -76,7 +76,37 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     }
   }, [existingEntry, petId]);
 
-  const handleSave = (goToNext = false) => {
+  const handleWhatsAppNotify = (entry: ChecklistEntry) => {
+    if (!pet) return;
+    const petName = pet.pet_nome || 'amigão';
+    
+    const foodStatus = entry.comeu;
+    const waterStatus = entry.agua;
+    const foodDetails = entry.quantoOferecido && entry.status !== 'OK' ? ` (${entry.quantoOferecido} oferecido, sobrou ${entry.quantoSobrou || '0'})` : '';
+    const obs = entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : '';
+
+    const messages = {
+      'OK': `Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ${obs}`,
+      'Atenção': `Olá! O ${petName} passou o dia conosco hoje. Ele ${foodStatus === 'Comeu tudo' ? 'comeu bem' : foodStatus.toLowerCase()}${foodDetails} e ${waterStatus === 'Bebeu muita água' ? 'se hidratou bem' : 'bebeu pouca água'}. Demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa. ${obs}`,
+      'Alerta': `Olá. Gostaríamos de informar que o ${petName} hoje ${foodStatus === 'Não comeu' ? 'não quis comer' : 'comeu pouco'}${foodDetails} e ${waterStatus === 'Não bebeu nada' ? 'não quis beber água' : 'bebeu pouca água'}. Recomendamos uma atenção especial à saúde dele hoje à noite. Qualquer dúvida estamos à disposição.${obs}`
+    };
+
+    const text = messages[entry.status as keyof typeof messages] || messages['Atenção'];
+    
+    // Clean phone number
+    const phone = pet.telefone?.replace(/\D/g, '') || '';
+    
+    if (!phone) {
+      navigator.clipboard.writeText(text);
+      alert('Pet sem telefone cadastrado. Mensagem copiada para o clipboard! ✅');
+      return;
+    }
+
+    const url = `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleSave = (goToNext = false, sendWhatsApp = false) => {
     if (!pet) return;
     const entry = { 
       ...form, 
@@ -87,10 +117,14 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     
     onSave(entry);
 
+    if (sendWhatsApp) {
+      handleWhatsAppNotify(entry);
+    }
+
     if (goToNext && nextPet) {
       navigate(`/pet/${nextPet.id}?date=${date}`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
+    } else if (!sendWhatsApp) {
       navigate('/');
     }
   };
@@ -246,26 +280,35 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
               />
             </div>
 
-            <div className="flex gap-4 items-stretch pt-4">
-              <button 
-                onClick={() => handleSave(false)} 
-                className="flex-grow py-6 bg-emerald-500 text-white font-black rounded-full shadow-lg shadow-emerald-500/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
-              >
-                SALVAR E SAIR 🏠
-              </button>
-
-              {nextPet && (
+            <div className="flex flex-col gap-4 pt-4">
+              <div className="flex gap-4 items-stretch">
                 <button 
-                  onClick={() => handleSave(true)}
-                  className="w-24 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[35px] flex flex-col items-center justify-center shadow-lg shadow-emerald-700/20 active:scale-95 transition-all group overflow-hidden border-2 border-white"
+                  onClick={() => handleSave(false)} 
+                  className="flex-grow py-6 bg-slate-100 text-slate-600 font-black rounded-full shadow-lg shadow-slate-200/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
                 >
-                  <span className="text-3xl group-hover:translate-x-1 transition-transform">→</span>
-                  <div className="text-[8px] font-black uppercase text-center px-1">
-                    <p className="opacity-50">PRÓXIMO</p>
-                    <p className="truncate w-full">{nextPet.pet_nome}</p>
-                  </div>
+                  SALVAR E SAIR 🏠
                 </button>
-              )}
+
+                {nextPet && (
+                  <button 
+                    onClick={() => handleSave(true)}
+                    className="w-24 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[35px] flex flex-col items-center justify-center shadow-lg shadow-emerald-700/20 active:scale-95 transition-all group overflow-hidden border-2 border-white"
+                  >
+                    <span className="text-3xl group-hover:translate-x-1 transition-transform">→</span>
+                    <div className="text-[8px] font-black uppercase text-center px-1">
+                      <p className="opacity-50">PRÓXIMO</p>
+                      <p className="truncate w-full">{nextPet.pet_nome}</p>
+                    </div>
+                  </button>
+                )}
+              </div>
+
+              <button 
+                onClick={() => handleSave(false, true)} 
+                className="w-full py-6 bg-emerald-500 text-white font-black rounded-full shadow-lg shadow-emerald-500/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
+              >
+                SALVAR E ENVIAR WHATSAPP 💬
+              </button>
             </div>
           </div>
         )}
