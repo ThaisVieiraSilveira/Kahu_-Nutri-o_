@@ -239,6 +239,7 @@ const Settings: React.FC<SettingsProps> = ({ pets, checklists, medications, medi
                 <p className="text-[11px] font-bold text-slate-600">2. Vá em Extensões {'>'} Apps Script.</p>
                 <p className="text-[11px] font-bold text-slate-600">3. Cole o código abaixo e clique em "Implantar" {'>'} "Nova Implantação" {'>'} "App da Web".</p>
                 <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", escolha "Qualquer pessoa".</p>
+                <p className="text-[10px] text-emerald-600 font-bold italic">Nota: O sistema agora envia automaticamente o nome do pet (pet_nome) para facilitar seus relatórios!</p>
                 <pre className="bg-slate-50 p-4 rounded-xl text-[9px] font-mono text-slate-500 overflow-x-auto border border-slate-200">
 {`function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -255,8 +256,22 @@ const Settings: React.FC<SettingsProps> = ({ pets, checklists, medications, medi
     sheet.appendRow(headers);
   }
   
-  var row = [new Date(), type];
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  // Adiciona novas colunas automaticamente se novos campos forem enviados
+  var updatedHeaders = false;
+  Object.keys(payload).forEach(function(key) {
+    if (headers.indexOf(key) === -1) {
+      headers.push(key);
+      updatedHeaders = true;
+    }
+  });
+  
+  if (updatedHeaders) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  
+  var row = [new Date(), type];
   for (var i = 2; i < headers.length; i++) {
     row.push(payload[headers[i]] || "");
   }

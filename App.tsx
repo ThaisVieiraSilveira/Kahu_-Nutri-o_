@@ -31,11 +31,20 @@ const App: React.FC = () => {
   const syncToSheets = async (type: string, data: any) => {
     if (!sheetsWebhookUrl) return;
     try {
+      // Enriquecer os dados com o nome do pet para facilitar a leitura no Sheets
+      const enrichedData = { ...data };
+      if (data.petId) {
+        const pet = pets.find(p => p.id === data.petId);
+        if (pet) {
+          enrichedData.pet_nome = pet.pet_nome;
+        }
+      }
+
       await fetch(sheetsWebhookUrl, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, data, timestamp: new Date().toISOString() })
+        body: JSON.stringify({ type, data: enrichedData, timestamp: new Date().toISOString() })
       });
     } catch (e) {
       console.error("Erro ao sincronizar com Sheets:", e);
