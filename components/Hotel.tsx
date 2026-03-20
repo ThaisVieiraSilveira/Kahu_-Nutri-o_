@@ -47,6 +47,7 @@ const Hotel: React.FC<HotelProps> = ({
   });
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [offeredByInputs, setOfferedByInputs] = useState<Record<string, string>>({});
 
   const handleAddMedication = (petId: string) => {
     if (!newMed.name || !newMed.time) {
@@ -115,31 +116,77 @@ const Hotel: React.FC<HotelProps> = ({
     setIsAddingStay(false);
   };
 
-  const toggleMedication = (petId: string, medicationId: string, slot: number = 0) => {
+  const handleConfirmMedication = (petId: string, medicationId: string, slot: number) => {
+    const inputKey = `${medicationId}-${slot}`;
+    const name = offeredByInputs[inputKey];
+    
+    if (!name) {
+      alert('Por favor, informe quem ofereceu a medicação.');
+      return;
+    }
+
+    const log: MedicationLog = {
+      id: Date.now().toString(),
+      medicationId,
+      petId,
+      date: selectedDate,
+      offered: true,
+      slot,
+      offeredBy: name
+    };
+
+    onSaveMedLog(log);
+    setOfferedByInputs(prev => {
+      const next = { ...prev };
+      delete next[inputKey];
+      return next;
+    });
+  };
+
+  const handleUndoMedication = (medicationId: string, slot: number) => {
     const existingLog = medicationLogs.find(l => 
       l.medicationId === medicationId && 
       l.date === selectedDate &&
       (l.slot === slot || (!l.slot && slot === 0))
     );
-    
-    const log: MedicationLog = {
-      id: existingLog?.id || Date.now().toString(),
-      medicationId,
-      petId,
-      date: selectedDate,
-      offered: !existingLog?.offered,
-      slot
-    };
 
-    onSaveMedLog(log);
+    if (existingLog) {
+      onSaveMedLog({ ...existingLog, offered: false });
+    }
   };
 
-  const isMedOffered = (medicationId: string, slot: number = 0) => {
+  const handleWhatsAppNotify = (pet: Pet, med: Medication, slot: number, offeredBy: string) => {
+    if (!pet.telefone) {
+      alert('Este pet não possui telefone cadastrado no cadastro.');
+      return;
+    }
+
+    const cleanPhone = pet.telefone.replace(/\D/g, '');
+    const numSlots = med.frequency === '12h' ? 2 : med.frequency === '8h' ? 3 : med.frequency === '6h' ? 4 : 1;
+    
+    let displayTime = med.time;
+    if (numSlots > 1 && slot > 1) {
+      const [hours, minutes] = med.time.split(':').map(Number);
+      const interval = med.frequency === '12h' ? 12 : med.frequency === '8h' ? 8 : 6;
+      const newHours = (hours + (interval * (slot - 1))) % 24;
+      displayTime = `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+
+    const message = `Olá! Informamos que o pet *${pet.pet_nome}* acabou de receber a medicação *${med.name}* (${displayTime}) oferecida por *${offeredBy}*.`;
+    const url = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  const getMedLog = (medicationId: string, slot: number = 0) => {
     return medicationLogs.find(l => 
       l.medicationId === medicationId && 
       l.date === selectedDate &&
       (l.slot === slot || (!l.slot && slot === 0))
-    )?.offered || false;
+    );
+  };
+
+  const isMedOffered = (medicationId: string, slot: number = 0) => {
+    return getMedLog(medicationId, slot)?.offered || false;
   };
 
   return (
@@ -368,6 +415,8 @@ const Hotel: React.FC<HotelProps> = ({
                               >
                                 <option value="24h">Uma vez ao dia (24h)</option>
                                 <option value="12h">A cada 12 horas</option>
+                                <option value="8h">A cada 8 horas</option>
+                                <option value="6h">A cada 6 horas</option>
                               </select>
                             </div>
                             <div className="sm:col-span-2 space-y-1">
@@ -404,44 +453,92 @@ const Hotel: React.FC<HotelProps> = ({
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {stay.meds.flatMap(med => {
-                        const slots = med.frequency === '12h' ? [1, 2] : [0];
+                        const getNumSlots = (freq: string) => {
+                          if (freq === '12h') return 2;
+                          if (freq === '8h') return 3;
+                          if (freq === '6h') return 4;
+                          return 1;
+                        };
+
+                        const numSlots = getNumSlots(med.frequency);
+                        const slots = numSlots > 1 ? Array.from({ length: numSlots }, (_, i) => i + 1) : [0];
+
                         return slots.map(slot => {
-                          const offered = isMedOffered(med.id, slot);
+                          const log = getMedLog(med.id, slot);
+                          const offered = log?.offered || false;
                           
                           let displayTime = med.time;
-                          if (med.frequency === '12h' && slot === 2) {
+                          if (numSlots > 1 && slot > 1) {
                             const [hours, minutes] = med.time.split(':').map(Number);
-                            const newHours = (hours + 12) % 24;
+                            const interval = med.frequency === '12h' ? 12 : med.frequency === '8h' ? 8 : 6;
+                            const newHours = (hours + (interval * (slot - 1))) % 24;
                             displayTime = `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
                           }
 
                           return (
-                            <button
+                            <div
                               key={`${med.id}-${slot}`}
-                              onClick={() => toggleMedication(stay.petId, med.id, slot)}
-                              className={`p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${
+                              className={`p-4 rounded-2xl border-2 flex flex-col gap-3 transition-all ${
                                 offered 
                                   ? 'bg-emerald-50 border-emerald-500 text-emerald-700' 
-                                  : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'
+                                  : 'bg-white border-slate-100 text-slate-600'
                               }`}
                             >
-                              <div className="text-left">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-black opacity-50">{displayTime}</span>
-                                  <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase">
-                                    {med.frequency === '12h' ? `12h (Dose ${slot})` : med.frequency}
-                                  </span>
-                                  <span className="font-black text-sm">{med.name}</span>
+                              <div className="flex items-center justify-between">
+                                <div className="text-left">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black opacity-50">{displayTime}</span>
+                                    <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase">
+                                      {numSlots > 1 ? `${med.frequency} (Dose ${slot})` : med.frequency}
+                                    </span>
+                                    <span className="font-black text-sm">{med.name}</span>
+                                  </div>
+                                  <div className="flex flex-col mt-0.5">
+                                    <span className="text-[10px] font-bold opacity-60">{med.dosage}</span>
+                                    {med.endDate && (
+                                      <span className="text-[8px] font-black text-rose-400 uppercase">Até {new Date(med.endDate).toLocaleDateString()}</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex flex-col mt-0.5">
-                                  <span className="text-[10px] font-bold opacity-60">{med.dosage}</span>
-                                  {med.endDate && (
-                                    <span className="text-[8px] font-black text-rose-400 uppercase">Até {new Date(med.endDate).toLocaleDateString()}</span>
-                                  )}
-                                </div>
+                                <span className="text-xl">{offered ? '✅' : '💊'}</span>
                               </div>
-                              <span className="text-xl">{offered ? '✅' : '💊'}</span>
-                            </button>
+
+                              {!offered ? (
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Quem ofereceu?"
+                                    value={offeredByInputs[`${med.id}-${slot}`] || ''}
+                                    onChange={(e) => setOfferedByInputs(prev => ({ ...prev, [`${med.id}-${slot}`]: e.target.value }))}
+                                    className="flex-1 p-2 text-[10px] font-bold rounded-xl border border-indigo-100 outline-none focus:border-indigo-300"
+                                  />
+                                  <button
+                                    onClick={() => handleConfirmMedication(stay.petId, med.id, slot)}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-sm hover:bg-indigo-700 transition-all"
+                                  >
+                                    Confirmar
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between bg-white/50 p-2 rounded-xl border border-emerald-100">
+                                  <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold">Oferecido por: <span className="font-black">{log?.offeredBy || 'N/A'}</span></span>
+                                    <button
+                                      onClick={() => handleWhatsAppNotify(stay.pet!, med, slot, log?.offeredBy || '')}
+                                      className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1 mt-1 hover:underline"
+                                    >
+                                      <span>📱 Avisar WhatsApp</span>
+                                    </button>
+                                  </div>
+                                  <button
+                                    onClick={() => handleUndoMedication(med.id, slot)}
+                                    className="text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline"
+                                  >
+                                    Desfazer
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           );
                         });
                       })}

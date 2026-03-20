@@ -28,16 +28,33 @@ const Reports: React.FC<ReportsProps> = ({ pets, checklists }) => {
     return counts;
   }, [filteredChecklists]);
 
-  const generateTutorMessage = (petName: string, entry: ChecklistEntry) => {
+  const handleWhatsAppNotify = (pet: Pet | undefined, entry: ChecklistEntry) => {
+    const petName = pet?.pet_nome || 'amigão';
+    
+    const foodStatus = entry.comeu;
+    const waterStatus = entry.agua;
+    const foodDetails = entry.quantoOferecido && entry.status !== 'OK' ? ` (${entry.quantoOferecido} oferecido, sobrou ${entry.quantoSobrou || '0'})` : '';
+    const obs = entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : '';
+
     const messages = {
-      'OK': `Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! 🐶✨ Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ❤️`,
-      'Atenção': `Olá! O ${petName} passou o dia conosco hoje. 🐾 Ele comeu apenas uma parte da refeição ou demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa. 😊`,
-      'Alerta': `Olá. Gostaríamos de informar que o ${petName} hoje não quis comer ou beber água como de costume. 🔴 Recomendamos uma atenção especial à saúde dele hoje à noite. Qualquer dúvida estamos à disposição.`
+      'OK': `Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ${obs}`,
+      'Atenção': `Olá! O ${petName} passou o dia conosco hoje. Ele ${foodStatus === 'Comeu tudo' ? 'comeu bem' : foodStatus.toLowerCase()}${foodDetails} e ${waterStatus === 'Bebeu muita água' ? 'se hidratou bem' : 'bebeu pouca água'}. Demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa. ${obs}`,
+      'Alerta': `Olá. Gostaríamos de informar que o ${petName} hoje ${foodStatus === 'Não comeu' ? 'não quis comer' : 'comeu pouco'}${foodDetails} e ${waterStatus === 'Não bebeu nada' ? 'não quis beber água' : 'bebeu pouca água'}. Recomendamos uma atenção especial à saúde dele hoje à noite. Qualquer dúvida estamos à disposição.${obs}`
     };
 
     const text = messages[entry.status as keyof typeof messages] || messages['Atenção'];
-    navigator.clipboard.writeText(text);
-    alert('Mensagem copiada para o WhatsApp! ✅');
+    
+    // Clean phone number
+    const phone = pet?.telefone?.replace(/\D/g, '') || '';
+    
+    if (!phone) {
+      navigator.clipboard.writeText(text);
+      alert('Pet sem telefone cadastrado. Mensagem copiada para o clipboard! ✅');
+      return;
+    }
+
+    const url = `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
   };
 
   return (
@@ -105,10 +122,10 @@ const Reports: React.FC<ReportsProps> = ({ pets, checklists }) => {
                     </div>
                   </div>
                   <button 
-                    onClick={() => generateTutorMessage(pet?.pet_nome || 'amigão', c)}
+                    onClick={() => handleWhatsAppNotify(pet, c)}
                     className="w-full md:w-auto px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full font-bold text-xs hover:bg-emerald-100 transition-colors"
                   >
-                    💬 Copiar Mensagem Tutor
+                    💬 Enviar WhatsApp Tutor
                   </button>
                 </div>
               );

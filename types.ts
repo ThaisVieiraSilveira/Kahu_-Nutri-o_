@@ -70,7 +70,7 @@ export interface Medication {
   name: string;
   dosage: string;
   time: string;
-  frequency: '12h' | '24h' | 'outra';
+  frequency: '6h' | '8h' | '12h' | '24h' | 'outra';
   startDate?: string;
   endDate?: string;
   instructions: string;
@@ -83,7 +83,8 @@ export interface MedicationLog {
   petId: string;
   date: string;
   offered: boolean;
-  slot?: number; // 0 for 24h, 1 or 2 for 12h
+  slot?: number; // 0 for 24h, 1-2 for 12h, 1-3 for 8h, 1-4 for 6h
+  offeredBy?: string;
   notes?: string;
 }
 

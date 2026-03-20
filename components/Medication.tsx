@@ -34,6 +34,7 @@ const Medication: React.FC<MedicationProps> = ({
   });
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [offeredByInputs, setOfferedByInputs] = useState<Record<string, string>>({});
 
   const filteredMedications = useMemo(() => {
     if (!selectedPetId) return [];
@@ -74,23 +75,65 @@ const Medication: React.FC<MedicationProps> = ({
     setIsAddingMed(false);
   };
 
-  const toggleOffered = (medicationId: string, slot: number = 0) => {
-    const existingLog = medicationLogs.find(l => l.medicationId === medicationId && l.date === selectedDate && (l.slot || 0) === slot);
+  const handleConfirmLog = (medicationId: string, slot: number = 0) => {
+    const inputKey = `${medicationId}-${slot}`;
+    const name = offeredByInputs[inputKey];
     
+    if (!name) {
+      alert('Por favor, informe quem ofereceu a medicação.');
+      return;
+    }
+
     const log: MedicationLog = {
-      id: existingLog?.id || Date.now().toString(),
+      id: Date.now().toString(),
       medicationId,
       petId: selectedPetId,
       date: selectedDate,
-      offered: !existingLog?.offered,
-      slot
+      offered: true,
+      slot,
+      offeredBy: name
     };
 
     onSaveLog(log);
+    setOfferedByInputs(prev => {
+      const next = { ...prev };
+      delete next[inputKey];
+      return next;
+    });
   };
 
-  const getLogStatus = (medicationId: string, slot: number = 0) => {
-    return medicationLogs.find(l => l.medicationId === medicationId && l.date === selectedDate && (l.slot || 0) === slot)?.offered || false;
+  const handleUndoLog = (medicationId: string, slot: number = 0) => {
+    const existingLog = medicationLogs.find(l => l.medicationId === medicationId && l.date === selectedDate && (l.slot || 0) === slot);
+    if (existingLog) {
+      onSaveLog({ ...existingLog, offered: false });
+    }
+  };
+
+  const handleWhatsAppNotify = (med: MedicationType, slot: number, offeredBy: string) => {
+    const pet = pets.find(p => p.id === selectedPetId);
+    if (!pet?.telefone) {
+      alert('Este pet não possui telefone cadastrado no cadastro.');
+      return;
+    }
+
+    const cleanPhone = pet.telefone.replace(/\D/g, '');
+    const numSlots = med.frequency === '12h' ? 2 : med.frequency === '8h' ? 3 : med.frequency === '6h' ? 4 : 1;
+    
+    let displayTime = med.time;
+    if (numSlots > 1 && slot > 1) {
+      const [hours, minutes] = med.time.split(':').map(Number);
+      const interval = med.frequency === '12h' ? 12 : med.frequency === '8h' ? 8 : 6;
+      const newHours = (hours + (interval * (slot - 1))) % 24;
+      displayTime = `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+
+    const message = `Olá! Informamos que o pet *${pet.pet_nome}* acabou de receber a medicação *${med.name}* (${displayTime}) oferecida por *${offeredBy}*.`;
+    const url = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  const getLog = (medicationId: string, slot: number = 0) => {
+    return medicationLogs.find(l => l.medicationId === medicationId && l.date === selectedDate && (l.slot || 0) === slot);
   };
 
   return (
@@ -172,6 +215,8 @@ const Medication: React.FC<MedicationProps> = ({
                     >
                       <option value="24h">Uma vez ao dia (24h)</option>
                       <option value="12h">A cada 12 horas</option>
+                      <option value="8h">A cada 8 horas</option>
+                      <option value="6h">A cada 6 horas</option>
                       <option value="outra">Outra</option>
                     </select>
                   </div>
@@ -250,73 +295,116 @@ const Medication: React.FC<MedicationProps> = ({
               </div>
             ) : (
               filteredMedications.map(med => {
-                const is12h = med.frequency === '12h';
+                const getNumSlots = (freq: string) => {
+                  if (freq === '12h') return 2;
+                  if (freq === '8h') return 3;
+                  if (freq === '6h') return 4;
+                  return 1;
+                };
+
+                const numSlots = getNumSlots(med.frequency);
                 
                 const renderMedRow = (slot: number = 0) => {
-                  const isOffered = getLogStatus(med.id, slot);
-                  const displayTime = slot === 2 ? (() => {
+                  const log = getLog(med.id, slot);
+                  const isOffered = log?.offered || false;
+                  const displayTime = slot > 1 ? (() => {
                     const [h, m] = med.time.split(':').map(Number);
-                    const newH = (h + 12) % 24;
+                    const interval = med.frequency === '12h' ? 12 : med.frequency === '8h' ? 8 : 6;
+                    const newH = (h + (interval * (slot - 1))) % 24;
                     return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
                   })() : med.time;
 
                   return (
                     <div 
                       key={`${med.id}-${slot}`}
-                      className={`bg-white p-6 rounded-[35px] border-2 transition-all flex flex-col md:flex-row items-center justify-between gap-6 ${isOffered ? 'border-emerald-500 shadow-lg shadow-emerald-100' : 'border-emerald-50 shadow-sm'}`}
+                      className={`bg-white p-6 rounded-[35px] border-2 transition-all flex flex-col items-stretch gap-6 ${isOffered ? 'border-emerald-500 shadow-lg shadow-emerald-100' : 'border-emerald-50 shadow-sm'}`}
                     >
-                      <div className="flex items-center gap-6 flex-1 w-full">
-                        <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center text-3xl shadow-inner border-2 ${isOffered ? 'bg-emerald-500 text-white border-emerald-400' : 'bg-emerald-50 text-emerald-400 border-white'}`}>
-                          {isOffered ? '✅' : '💊'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <span className="bg-emerald-100 text-emerald-600 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest">{displayTime}</span>
-                            <span className="bg-emerald-50 text-emerald-500 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest">{is12h ? `12h (Dose ${slot})` : med.frequency === '24h' ? '24h' : 'Outra'}</span>
-                            <h4 className="font-black text-xl text-slate-800">{med.name}</h4>
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-6 flex-1 w-full">
+                          <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center text-3xl shadow-inner border-2 ${isOffered ? 'bg-emerald-500 text-white border-emerald-400' : 'bg-emerald-50 text-emerald-400 border-white'}`}>
+                            {isOffered ? '✅' : '💊'}
                           </div>
-                          <p className="text-sm font-bold text-slate-400 mt-1">
-                            {med.dosage} • {med.instructions || 'Sem instruções'}
-                            {med.startDate && ` • Início: ${new Date(med.startDate).toLocaleDateString()}`}
-                            {med.endDate && ` • Término: ${new Date(med.endDate).toLocaleDateString()}`}
-                          </p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3">
+                              <span className="bg-emerald-100 text-emerald-600 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest">{displayTime}</span>
+                              <span className="bg-emerald-50 text-emerald-500 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                {numSlots > 1 ? `${med.frequency} (Dose ${slot})` : med.frequency === '24h' ? '24h' : 'Outra'}
+                              </span>
+                              <h4 className="font-black text-xl text-slate-800">{med.name}</h4>
+                            </div>
+                            <p className="text-sm font-bold text-slate-400 mt-1">
+                              {med.dosage} • {med.instructions || 'Sem instruções'}
+                              {med.startDate && ` • Início: ${new Date(med.startDate).toLocaleDateString()}`}
+                              {med.endDate && ` • Término: ${new Date(med.endDate).toLocaleDateString()}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 w-full md:w-auto">
+                          {isOffered && (
+                            <div className="flex flex-col items-end">
+                              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">OFERECIDO POR</span>
+                              <span className="text-sm font-black text-slate-800">{log?.offeredBy || 'N/A'}</span>
+                            </div>
+                          )}
+                          
+                          {slot <= 1 && (
+                            <button 
+                              onClick={() => {
+                                if (confirm('Deseja excluir este remédio?')) {
+                                  onDeleteMedication(med.id);
+                                }
+                              }}
+                              className="w-14 h-14 bg-rose-50 text-rose-400 rounded-2xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all border border-rose-100"
+                            >
+                              🗑️
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 w-full md:w-auto">
-                        <button 
-                          onClick={() => toggleOffered(med.id, slot)}
-                          className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border-b-4 ${
-                            isOffered 
-                              ? 'bg-emerald-600 border-emerald-800 text-white shadow-inner translate-y-1' 
-                              : 'bg-emerald-500 border-emerald-700 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-200'
-                          }`}
-                        >
-                          {isOffered ? 'OFERECIDO' : 'MARCAR COMO OFERECIDO'}
-                        </button>
-                        
-                        {slot <= 1 && (
-                          <button 
-                            onClick={() => {
-                              if (confirm('Deseja excluir este remédio?')) {
-                                onDeleteMedication(med.id);
-                              }
-                            }}
-                            className="w-14 h-14 bg-rose-50 text-rose-400 rounded-2xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all border border-rose-100"
-                          >
-                            🗑️
-                          </button>
+                      <div className="flex flex-col md:flex-row gap-4 pt-4 border-t border-slate-50">
+                        {!isOffered ? (
+                          <>
+                            <input
+                              type="text"
+                              placeholder="Quem ofereceu a medicação?"
+                              value={offeredByInputs[`${med.id}-${slot}`] || ''}
+                              onChange={(e) => setOfferedByInputs(prev => ({ ...prev, [`${med.id}-${slot}`]: e.target.value }))}
+                              className="flex-1 p-4 bg-emerald-50/30 border-2 border-emerald-50 rounded-2xl font-bold outline-none focus:border-emerald-300 transition-all"
+                            />
+                            <button 
+                              onClick={() => handleConfirmLog(med.id, slot)}
+                              className="px-8 py-4 bg-emerald-500 border-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 shadow-lg shadow-emerald-200 border-b-4 transition-all"
+                            >
+                              CONFIRMAR MEDICAÇÃO
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex-1 flex flex-col md:flex-row gap-4">
+                            <button
+                              onClick={() => handleWhatsAppNotify(med, slot, log?.offeredBy || '')}
+                              className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all border border-emerald-100 flex items-center justify-center gap-2"
+                            >
+                              <span>📱 Avisar WhatsApp</span>
+                            </button>
+                            <button 
+                              onClick={() => handleUndoLog(med.id, slot)}
+                              className="flex-1 py-4 bg-rose-50 text-rose-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all border border-rose-100"
+                            >
+                              DESFAZER CONFIRMAÇÃO
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
                   );
                 };
 
-                if (is12h) {
+                if (numSlots > 1) {
                   return (
                     <div key={med.id} className="space-y-4">
-                      {renderMedRow(1)}
-                      {renderMedRow(2)}
+                      {Array.from({ length: numSlots }, (_, i) => renderMedRow(i + 1))}
                     </div>
                   );
                 }
