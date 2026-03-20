@@ -26,6 +26,21 @@ const App: React.FC = () => {
   const [hotelStays, setHotelStays] = useState<HotelStay[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [sheetsWebhookUrl, setSheetsWebhookUrl] = useState<string>(localStorage.getItem('kahu_sheets_url') || '');
+
+  const syncToSheets = async (type: string, data: any) => {
+    if (!sheetsWebhookUrl) return;
+    try {
+      await fetch(sheetsWebhookUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, data, timestamp: new Date().toISOString() })
+      });
+    } catch (e) {
+      console.error("Erro ao sincronizar com Sheets:", e);
+    }
+  };
 
   useEffect(() => {
     const authStatus = localStorage.getItem('kahu_authenticated');
@@ -115,6 +130,7 @@ const App: React.FC = () => {
       localStorage.setItem('kahu_checklists', JSON.stringify(updated));
       return updated;
     });
+    syncToSheets('checklist', entry);
   };
 
   const updatePetMaster = (updatedPet: Pet) => {
@@ -200,6 +216,7 @@ const App: React.FC = () => {
       localStorage.setItem('kahu_medication_logs', JSON.stringify(updated));
       return updated;
     });
+    syncToSheets('medication_log', log);
   };
 
   const saveHotelStay = (stay: HotelStay) => {
@@ -209,6 +226,12 @@ const App: React.FC = () => {
       localStorage.setItem('kahu_hotel_stays', JSON.stringify(updated));
       return updated;
     });
+    syncToSheets('hotel_stay', stay);
+  };
+
+  const saveSheetsUrl = (url: string) => {
+    setSheetsWebhookUrl(url);
+    localStorage.setItem('kahu_sheets_url', url);
   };
 
   const deleteHotelStay = (id: string) => {
@@ -277,7 +300,7 @@ const App: React.FC = () => {
           <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} onSaveMedication={saveMedication} />} />
           <Route path="/pet/:petId" element={<PetChecklist pets={pets} checklists={checklists} onSave={saveChecklist} onUpdatePet={updatePetMaster} />} />
           <Route path="/relatorios" element={<Reports pets={pets} checklists={checklists} />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<Settings pets={pets} checklists={checklists} medications={medications} medicationLogs={medicationLogs} hotelStays={hotelStays} sheetsUrl={sheetsWebhookUrl} onSaveSheetsUrl={saveSheetsUrl} />} />
         </Routes>
       </Layout>
     </Router>
