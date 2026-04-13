@@ -27,11 +27,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
   }, [date]);
 
   const scheduledPetsForToday = useMemo(() => {
-    return pets.filter(p => isPetOnDay(p, currentDayName)).sort((a, b) => {
-      const numA = parseInt(a.id.replace(/\D/g, '')) || 0;
-      const numB = parseInt(b.id.replace(/\D/g, '')) || 0;
-      return numA - numB;
-    });
+    return pets.filter(p => isPetOnDay(p, currentDayName)).sort((a, b) => a.pet_nome.localeCompare(b.pet_nome));
   }, [pets, currentDayName]);
 
   const nextPet = useMemo(() => {
@@ -46,15 +42,15 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
   const existingEntry = checklists.find(c => c.petId === petId && c.date === date);
 
   const [form, setForm] = useState<Partial<ChecklistEntry>>({
-    comeu: 'Comeu tudo',
-    agua: 'Bebeu muita água',
+    comeu: undefined,
+    agua: undefined,
     quantoOferecido: '',
     quantoSobrou: '',
     teveEstimuloHidratacao: 'Não',
     comportamento: '',
     alertas: '',
     observacoes: '',
-    escoreFecal: 3,
+    escoreFecal: undefined,
     ...existingEntry
   });
 
@@ -63,15 +59,15 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
       setForm(existingEntry);
     } else {
       setForm({
-        comeu: 'Comeu tudo',
-        agua: 'Bebeu muita água',
+        comeu: undefined,
+        agua: undefined,
         quantoOferecido: '',
         quantoSobrou: '',
         teveEstimuloHidratacao: 'Não',
         comportamento: '',
         alertas: '',
         observacoes: '',
-        escoreFecal: 3,
+        escoreFecal: undefined,
       });
     }
   }, [existingEntry, petId]);
@@ -82,16 +78,44 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     
     const foodStatus = entry.comeu;
     const waterStatus = entry.agua;
-    const foodDetails = entry.quantoOferecido && entry.status !== 'OK' ? ` (${entry.quantoOferecido} oferecido, sobrou ${entry.quantoSobrou || '0'})` : '';
-    const obs = entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : '';
+    const fecalScore = entry.escoreFecal;
+    
+    let messageParts = [`Olá! Passando para dar notícias do ${petName} hoje.`];
 
-    const messages = {
-      'OK': `Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ${obs}`,
-      'Atenção': `Olá! O ${petName} passou o dia conosco hoje. Ele ${foodStatus === 'Comeu tudo' ? 'comeu bem' : foodStatus.toLowerCase()}${foodDetails} e ${waterStatus === 'Bebeu muita água' ? 'se hidratou bem' : 'bebeu pouca água'}. Demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa. ${obs}`,
-      'Alerta': `Olá. Gostaríamos de informar que o ${petName} hoje ${foodStatus === 'Não comeu' ? 'não quis comer' : 'comeu pouco'}${foodDetails} e ${waterStatus === 'Não bebeu nada' ? 'não quis beber água' : 'bebeu pouca água'}. Recomendamos uma atenção especial à saúde dele hoje à noite. Qualquer dúvida estamos à disposição.${obs}`
-    };
+    if (foodStatus) {
+      const foodDetails = entry.quantoOferecido && entry.status !== 'OK' ? ` (${entry.quantoOferecido} oferecido, sobrou ${entry.quantoSobrou || '0'})` : '';
+      const nutritionNote = (foodStatus === 'Não comeu' || foodStatus === 'Comeu metade') 
+        ? "\n\nCaso continue apresentando falta de apetite, uma consulta com uma nutricionista veterinária pode ser uma ótima opção para ajustar a dieta de forma personalizada."
+        : "";
+      
+      if (foodStatus === 'Comeu tudo') {
+        messageParts.push(`Sobre a alimentação: ele comeu super bem, limpou o potinho! 😋`);
+      } else {
+        messageParts.push(`Sobre a alimentação: ele ${foodStatus.toLowerCase()}${foodDetails}.${nutritionNote}`);
+      }
+    }
 
-    const text = messages[entry.status as keyof typeof messages] || messages['Atenção'];
+    if (waterStatus) {
+      if (waterStatus === 'Bebeu muita água') {
+        messageParts.push(`Hidratação: se hidratou super bem ao longo do dia. 💧`);
+      } else {
+        messageParts.push(`Hidratação: ${waterStatus.toLowerCase()}.`);
+      }
+    }
+
+    if (fecalScore) {
+      messageParts.push(`Escore fecal: ${FECAL_SCORE_LABELS[fecalScore]}.`);
+    }
+
+    if (entry.observacoes) {
+      messageParts.push(`\nObservação: ${entry.observacoes}`);
+    }
+
+    if (entry.status === 'OK' && foodStatus === 'Comeu tudo' && waterStatus === 'Bebeu muita água') {
+      messageParts = [`Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ${entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : ''}`];
+    }
+
+    const text = messageParts.join('\n\n');
     
     // Clean phone number
     const phone = pet.telefone?.replace(/\D/g, '') || '';
@@ -106,7 +130,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     window.open(url, '_blank');
   };
 
-  const handleSave = (goToNext = false, sendWhatsApp = false) => {
+  const handleSave = (mode: 'exit' | 'next' | 'stay' | 'whatsapp') => {
     if (!pet) return;
     const entry = { 
       ...form, 
@@ -117,15 +141,17 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     
     onSave(entry);
 
-    if (sendWhatsApp) {
+    if (mode === 'whatsapp') {
       handleWhatsAppNotify(entry);
     }
 
-    if (goToNext && nextPet) {
+    if (mode === 'next' && nextPet) {
       navigate(`/pet/${nextPet.id}?date=${date}`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (!sendWhatsApp) {
+    } else if (mode === 'exit') {
       navigate('/');
+    } else if (mode === 'stay') {
+      alert('Progresso salvo com sucesso! 💾');
     }
   };
 
@@ -176,7 +202,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                 ].map(opt => (
                   <button 
                     key={opt.label} 
-                    onClick={() => setForm({...form, comeu: opt.label as any})} 
+                    onClick={() => setForm({...form, comeu: form.comeu === opt.label ? undefined : opt.label as any})} 
                     className={`flex-1 py-5 rounded-[25px] font-black text-[11px] uppercase border-2 transition-all flex flex-col items-center gap-1 ${
                       form.comeu === opt.label 
                       ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg scale-105 z-10' 
@@ -226,7 +252,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                 ].map(opt => (
                   <button 
                     key={opt.label} 
-                    onClick={() => setForm({...form, agua: opt.label as any})} 
+                    onClick={() => setForm({...form, agua: form.agua === opt.label ? undefined : opt.label as any})} 
                     className={`flex-1 py-5 rounded-[25px] font-black text-[11px] uppercase border-2 transition-all flex flex-col items-center gap-1 ${
                       form.agua === opt.label 
                       ? 'bg-sky-500 text-white border-sky-600 shadow-lg scale-105 z-10' 
@@ -249,7 +275,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                 {[1, 2, 3, 4, 5].map(score => (
                   <button 
                     key={score} 
-                    onClick={() => setForm({...form, escoreFecal: score})} 
+                    onClick={() => setForm({...form, escoreFecal: form.escoreFecal === score ? undefined : score})} 
                     className={`flex flex-col items-center py-4 rounded-2xl font-black text-lg border-2 transition-all ${
                       form.escoreFecal === score 
                       ? 'bg-amber-500 text-white border-amber-600 shadow-lg scale-110 z-10' 
@@ -281,17 +307,32 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
             </div>
 
             <div className="flex flex-col gap-4 pt-4">
-              <div className="flex gap-4 items-stretch">
+              <div className="grid grid-cols-2 gap-4">
                 <button 
-                  onClick={() => handleSave(false)} 
-                  className="flex-grow py-6 bg-slate-100 text-slate-600 font-black rounded-full shadow-lg shadow-slate-200/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
+                  onClick={() => handleSave('stay')} 
+                  className="py-4 bg-white border-2 border-emerald-100 text-emerald-600 font-black rounded-full shadow-sm text-sm hover:bg-emerald-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  APENAS SALVAR 💾
+                </button>
+                <button 
+                  onClick={() => handleSave('exit')} 
+                  className="py-4 bg-slate-100 text-slate-600 font-black rounded-full shadow-sm text-sm hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   SALVAR E SAIR 🏠
+                </button>
+              </div>
+
+              <div className="flex gap-4 items-stretch">
+                <button 
+                  onClick={() => handleSave('whatsapp')} 
+                  className="flex-grow py-6 bg-emerald-500 text-white font-black rounded-full shadow-lg shadow-emerald-500/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
+                >
+                  SALVAR E ENVIAR WHATSAPP 💬
                 </button>
 
                 {nextPet && (
                   <button 
-                    onClick={() => handleSave(true)}
+                    onClick={() => handleSave('next')}
                     className="w-24 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[35px] flex flex-col items-center justify-center shadow-lg shadow-emerald-700/20 active:scale-95 transition-all group overflow-hidden border-2 border-white"
                   >
                     <span className="text-3xl group-hover:translate-x-1 transition-transform">→</span>
@@ -302,13 +343,6 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                   </button>
                 )}
               </div>
-
-              <button 
-                onClick={() => handleSave(false, true)} 
-                className="w-full py-6 bg-emerald-500 text-white font-black rounded-full shadow-lg shadow-emerald-500/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
-              >
-                SALVAR E ENVIAR WHATSAPP 💬
-              </button>
             </div>
           </div>
         )}

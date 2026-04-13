@@ -51,11 +51,7 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
           pet.id.toLowerCase().includes(searchTerm.toLowerCase());
         return matchesDay && matchesSearch;
       })
-      .sort((a, b) => {
-        const numA = parseInt(a.id.replace(/\D/g, '')) || 0;
-        const numB = parseInt(b.id.replace(/\D/g, '')) || 0;
-        return numA - numB;
-      });
+      .sort((a, b) => a.pet_nome.localeCompare(b.pet_nome));
   }, [pets, selectedDay, searchTerm]);
 
   const checklistsForDate = useMemo(() => checklists.filter(c => c.date === searchDate), [checklists, searchDate]);

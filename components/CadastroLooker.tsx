@@ -26,11 +26,7 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet }) =>
         (filterType === 'doenca' && pet.possui_doenca.toLowerCase() === 'sim');
 
       return matchesSearch && matchesFilter;
-    }).sort((a, b) => {
-        const numA = parseInt(a.id.replace(/\D/g, '')) || 0;
-        const numB = parseInt(b.id.replace(/\D/g, '')) || 0;
-        return numA - numB;
-    });
+    }).sort((a, b) => a.pet_nome.localeCompare(b.pet_nome));
   }, [pets, searchTerm, filterType]);
 
   return (

@@ -11,6 +11,18 @@ interface ReportsProps {
 const Reports: React.FC<ReportsProps> = ({ pets, checklists }) => {
   const [selectedPetId, setSelectedPetId] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [activeTab, setActiveTab] = useState<'monthly' | 'today'>('today');
+
+  const todayDate = new Date().toISOString().split('T')[0];
+
+  const todayChecklists = useMemo(() => {
+    return checklists.filter(c => c.date === todayDate)
+      .sort((a, b) => {
+        const petA = pets.find(p => p.id === a.petId);
+        const petB = pets.find(p => p.id === b.petId);
+        return (petA?.pet_nome || '').localeCompare(petB?.pet_nome || '');
+      });
+  }, [checklists, pets, todayDate]);
 
   const filteredChecklists = useMemo(() => {
     return checklists.filter(c => {
@@ -34,12 +46,15 @@ const Reports: React.FC<ReportsProps> = ({ pets, checklists }) => {
     const foodStatus = entry.comeu;
     const waterStatus = entry.agua;
     const foodDetails = entry.quantoOferecido && entry.status !== 'OK' ? ` (${entry.quantoOferecido} oferecido, sobrou ${entry.quantoSobrou || '0'})` : '';
+    const nutritionNote = (foodStatus === 'Não comeu' || foodStatus === 'Comeu metade') 
+      ? "\n\nCaso continue apresentando falta de apetite, uma consulta com uma nutricionista veterinária pode ser uma ótima opção para ajustar a dieta de forma personalizada."
+      : "";
     const obs = entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : '';
 
     const messages = {
       'OK': `Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ${obs}`,
-      'Atenção': `Olá! O ${petName} passou o dia conosco hoje. Ele ${foodStatus === 'Comeu tudo' ? 'comeu bem' : foodStatus.toLowerCase()}${foodDetails} e ${waterStatus === 'Bebeu muita água' ? 'se hidratou bem' : 'bebeu pouca água'}. Demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa. ${obs}`,
-      'Alerta': `Olá. Gostaríamos de informar que o ${petName} hoje ${foodStatus === 'Não comeu' ? 'não quis comer' : 'comeu pouco'}${foodDetails} e ${waterStatus === 'Não bebeu nada' ? 'não quis beber água' : 'bebeu pouca água'}. Recomendamos uma atenção especial à saúde dele hoje à noite. Qualquer dúvida estamos à disposição.${obs}`
+      'Atenção': `Olá! O ${petName} passou o dia conosco hoje. Ele ${foodStatus === 'Comeu tudo' ? 'comeu bem' : foodStatus.toLowerCase()}${foodDetails} e ${waterStatus === 'Bebeu muita água' ? 'se hidratou bem' : 'bebeu pouca água'}. Demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa.${nutritionNote} ${obs}`,
+      'Alerta': `Olá. Gostaríamos de informar que o ${petName} hoje ${foodStatus === 'Não comeu' ? 'não quis comer' : 'comeu pouco'}${foodDetails} e ${waterStatus === 'Não bebeu nada' ? 'não quis beber água' : 'bebeu pouca água'}. Recomendamos uma atenção especial à saúde dele hoje à noite. Qualquer dúvida estamos à disposição.${nutritionNote}${obs}`
     };
 
     const text = messages[entry.status as keyof typeof messages] || messages['Atenção'];
@@ -58,81 +73,166 @@ const Reports: React.FC<ReportsProps> = ({ pets, checklists }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-slate-800">Relatórios Mensais</h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Mês</label>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="w-full p-3 border border-emerald-100 rounded-2xl bg-white text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-300 font-bold"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider">Filtrar Pet</label>
-          <select
-            value={selectedPetId}
-            onChange={(e) => setSelectedPetId(e.target.value)}
-            className="w-full p-3 border border-emerald-100 rounded-2xl bg-white text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-300 font-bold appearance-none"
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h2 className="text-4xl font-black text-slate-800 tracking-tighter">Relatórios</h2>
+        <div className="flex bg-slate-100 p-1 rounded-2xl shadow-inner">
+          <button 
+            onClick={() => setActiveTab('today')}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'today' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            <option value="">Todos os Pets</option>
-            {pets.map(p => (
-              <option key={p.id} value={p.id}>{p.pet_nome}</option>
-            ))}
-          </select>
+            Hoje 📅
+          </button>
+          <button 
+            onClick={() => setActiveTab('monthly')}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'monthly' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            Mensal 📊
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-emerald-50 p-4 rounded-3xl border border-emerald-100 text-center">
-          <span className="text-3xl block mb-1">🟢</span>
-          <span className="text-2xl font-black text-emerald-700">{stats.OK}</span>
-          <p className="text-xs font-bold text-emerald-600">DIAS OK</p>
-        </div>
-        <div className="bg-amber-50 p-4 rounded-3xl border border-amber-100 text-center">
-          <span className="text-3xl block mb-1">🟡</span>
-          <span className="text-2xl font-black text-amber-700">{stats.Atenção}</span>
-          <p className="text-xs font-bold text-amber-600">ATENÇÃO</p>
-        </div>
-        <div className="bg-rose-50 p-4 rounded-3xl border border-rose-100 text-center">
-          <span className="text-3xl block mb-1">🔴</span>
-          <span className="text-2xl font-black text-rose-700">{stats.Alerta}</span>
-          <p className="text-xs font-bold text-rose-600">ALERTA</p>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="text-xl font-bold text-slate-700">Histórico de Atividades</h3>
-        {filteredChecklists.length === 0 ? (
-          <p className="text-slate-400 text-center py-8 bg-slate-50 rounded-2xl">Sem registros neste período.</p>
-        ) : (
-          <div className="space-y-3">
-            {filteredChecklists.map((c, i) => {
-              const pet = pets.find(p => p.id === c.petId);
-              return (
-                <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <span className={`w-3 h-3 rounded-full ${getStatusColor(c.status)}`}></span>
-                    <div>
-                      <p className="font-bold text-slate-800">{pet?.pet_nome || 'Pet Removido'} • {new Date(c.date).toLocaleDateString('pt-BR')}</p>
-                      <p className="text-xs text-slate-500 italic">"{c.observacoes || 'Sem observações'}"</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => handleWhatsAppNotify(pet, c)}
-                    className="w-full md:w-auto px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full font-bold text-xs hover:bg-emerald-100 transition-colors"
-                  >
-                    💬 Enviar WhatsApp Tutor
-                  </button>
-                </div>
-              );
-            })}
+      {activeTab === 'today' ? (
+        <div className="space-y-6">
+          <div className="bg-emerald-50 p-6 rounded-[35px] border border-emerald-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+              <h3 className="text-xl font-black text-emerald-900 leading-tight">Envio em Massa</h3>
+              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Envie todos os relatórios de hoje rapidamente</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-black text-emerald-700">{todayChecklists.length}</span>
+              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Pets com Diário</span>
+            </div>
+            {todayChecklists.length > 0 && (
+              <button 
+                onClick={() => {
+                  if (confirm(`Deseja abrir ${todayChecklists.length} abas do WhatsApp? O seu navegador pode bloquear popups.`)) {
+                    todayChecklists.forEach((c, index) => {
+                      const pet = pets.find(p => p.id === c.petId);
+                      setTimeout(() => {
+                        handleWhatsAppNotify(pet, c);
+                      }, index * 1000); // 1 second delay between each to help with browser blocks
+                    });
+                  }
+                }}
+                className="px-6 py-3 bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-200 hover:scale-105 active:scale-95 transition-all"
+              >
+                🚀 Enviar Todos
+              </button>
+            )}
           </div>
-        )}
-      </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {todayChecklists.length === 0 ? (
+              <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200 opacity-40">
+                <span className="text-6xl block mb-4">📝</span>
+                <p className="font-black text-slate-800 uppercase tracking-widest text-sm">Nenhum diário preenchido hoje ainda.</p>
+              </div>
+            ) : (
+              todayChecklists.map((c, i) => {
+                const pet = pets.find(p => p.id === c.petId);
+                return (
+                  <div key={i} className="bg-white p-6 rounded-[35px] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-xl transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner border border-white ${getStatusColor(c.status)} text-white`}>
+                        {getStatusEmoji(c.status)}
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 leading-none mb-1">{pet?.pet_nome || 'Pet Removido'}</p>
+                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{c.status} • {c.comeu}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleWhatsAppNotify(pet, c)}
+                      className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                      title="Enviar WhatsApp"
+                    >
+                      💬
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6 animate-in slide-in-from-right-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Mês de Referência</label>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="w-full p-4 bg-white border-2 border-emerald-50 rounded-[25px] font-black text-emerald-800 outline-none focus:border-emerald-300 shadow-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Filtrar por Pet</label>
+              <select
+                value={selectedPetId}
+                onChange={(e) => setSelectedPetId(e.target.value)}
+                className="w-full p-4 bg-white border-2 border-emerald-50 rounded-[25px] font-black text-emerald-800 outline-none focus:border-emerald-300 shadow-sm appearance-none"
+              >
+                <option value="">Todos os Pets</option>
+                {pets.map(p => (
+                  <option key={p.id} value={p.id}>{p.pet_nome}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-emerald-50 p-5 rounded-[35px] border border-emerald-100 text-center shadow-sm">
+              <span className="text-3xl block mb-1">🟢</span>
+              <span className="text-2xl font-black text-emerald-700">{stats.OK}</span>
+              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">DIAS OK</p>
+            </div>
+            <div className="bg-amber-50 p-5 rounded-[35px] border border-amber-100 text-center shadow-sm">
+              <span className="text-3xl block mb-1">🟡</span>
+              <span className="text-2xl font-black text-amber-700">{stats.Atenção}</span>
+              <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">ATENÇÃO</p>
+            </div>
+            <div className="bg-rose-50 p-5 rounded-[35px] border border-rose-100 text-center shadow-sm">
+              <span className="text-3xl block mb-1">🔴</span>
+              <span className="text-2xl font-black text-rose-700">{stats.Alerta}</span>
+              <p className="text-[9px] font-black text-rose-600 uppercase tracking-widest">ALERTA</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Histórico Detalhado</h3>
+            {filteredChecklists.length === 0 ? (
+              <p className="text-slate-300 text-center py-16 bg-slate-50 rounded-[40px] font-bold italic">Sem registros para este filtro.</p>
+            ) : (
+              <div className="space-y-3">
+                {filteredChecklists.map((c, i) => {
+                  const pet = pets.find(p => p.id === c.petId);
+                  return (
+                    <div key={i} className="bg-white p-5 rounded-[30px] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:shadow-md transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner border border-white ${getStatusColor(c.status)} text-white`}>
+                          {getStatusEmoji(c.status)}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-800 leading-none mb-1">{pet?.pet_nome || 'Pet Removido'} • {new Date(c.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                          <p className="text-[10px] font-bold text-slate-400 italic">"{c.observacoes || 'Sem observações'}"</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleWhatsAppNotify(pet, c)}
+                        className="w-full md:w-auto px-6 py-2 bg-emerald-50 text-emerald-600 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                      >
+                        Reenviar WhatsApp
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
