@@ -2,21 +2,19 @@
 import { ChecklistEntry, DayStatus } from '../types';
 
 export const calculateStatus = (data: Partial<ChecklistEntry>): DayStatus => {
-  const { comeu, agua, escoreFecal } = data;
+  const { comeu } = data;
 
-  if (!comeu || !agua || !escoreFecal) return 'Pendente';
+  if (!comeu) return 'Pendente';
 
-  // Alerta: Não comeu OR Não bebeu OR escore 1 ou 5
-  if (comeu === 'Não comeu' || agua === 'Não bebeu nada' || escoreFecal === 1 || escoreFecal === 5) {
+  if (comeu === 'Não comeu') {
     return 'Alerta';
   }
 
-  // OK: Comeu tudo + Bebeu bastante + Escore 3
-  if (comeu === 'Comeu tudo' && agua === 'Bebeu muita água' && escoreFecal === 3) {
+  if (comeu === 'Comeu tudo') {
     return 'OK';
   }
 
-  // Atenção: Sobra de condições (ex: comeu metade, bebeu pouco, etc)
+  // Comeu metade ou Comeu menos da metade
   return 'Atenção';
 };
 

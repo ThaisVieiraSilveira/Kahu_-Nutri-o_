@@ -136,6 +136,10 @@ const Medication: React.FC<MedicationProps> = ({
     return medicationLogs.find(l => l.medicationId === medicationId && l.date === selectedDate && (l.slot || 0) === slot);
   };
 
+  const sortedPets = useMemo(() => {
+    return [...pets].sort((a, b) => a.pet_nome.localeCompare(b.pet_nome));
+  }, [pets]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -167,7 +171,7 @@ const Medication: React.FC<MedicationProps> = ({
           className="w-full p-4 bg-emerald-50/50 border-2 border-emerald-100 rounded-[24px] font-black text-emerald-900 outline-none focus:border-emerald-400 transition-all appearance-none cursor-pointer"
         >
           <option value="">Escolha um pet...</option>
-          {pets.map(pet => (
+          {sortedPets.map(pet => (
             <option key={pet.id} value={pet.id}>{pet.pet_nome} ({pet.id})</option>
           ))}
         </select>

@@ -45,7 +45,7 @@ export interface ChecklistEntry {
   petId: string;
   date: string;
   status: DayStatus;
-  comeu: 'Comeu tudo' | 'Comeu metade' | 'Não comeu';
+  comeu: 'Comeu tudo' | 'Comeu metade' | 'Não comeu' | 'Comeu menos da metade';
   quantoOferecido: string;
   quantoSobrou: string;
   agua: 'Bebeu muita água' | 'Pouca água' | 'Não bebeu nada';

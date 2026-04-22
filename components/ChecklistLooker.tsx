@@ -85,7 +85,6 @@ const ChecklistLooker: React.FC<ChecklistLookerProps> = ({ pets, checklists }) =
                 <th className="p-6 font-black text-[9px] uppercase tracking-[0.2em] text-slate-400">STATUS</th>
                 <th className="p-6 font-black text-[9px] uppercase tracking-[0.2em] text-slate-400">DIA SEMANAL</th>
                 <th className="p-6 font-black text-[9px] uppercase tracking-[0.2em] text-slate-400">ALIMENTAÇÃO</th>
-                <th className="p-6 font-black text-[9px] uppercase tracking-[0.2em] text-slate-400">HIDRATAÇÃO</th>
                 <th className="p-6 font-black text-[9px] uppercase tracking-[0.2em] text-slate-400">OBSERVAÇÕES</th>
               </tr>
             </thead>
@@ -108,16 +107,7 @@ const ChecklistLooker: React.FC<ChecklistLookerProps> = ({ pets, checklists }) =
                     </span>
                   </td>
                   <td className="p-6">
-                    <div className="flex flex-col">
-                      <span className="font-black text-[11px] text-slate-700">{entry.comeu}</span>
-                      <span className="text-[9px] text-slate-400 font-bold">Oferecido: {entry.quantoOferecido || '-'} / Sobra: {entry.quantoSobrou || '-'}</span>
-                    </div>
-                  </td>
-                  <td className="p-6">
-                    <div className="flex flex-col">
-                      <span className="font-black text-[11px] text-slate-700">{entry.agua}</span>
-                      <span className="text-[9px] text-slate-400 font-bold">Estímulo: {entry.teveEstimuloHidratacao}</span>
-                    </div>
+                    <span className="font-black text-[11px] text-slate-700">{entry.comeu}</span>
                   </td>
                   <td className="p-6">
                     <p className="text-[11px] text-slate-500 font-medium max-w-[200px] italic leading-relaxed" title={entry.observacoes}>

@@ -243,6 +243,78 @@ const App: React.FC = () => {
     localStorage.setItem('kahu_sheets_url', url);
   };
 
+  const pushMasterSync = async () => {
+    if (!sheetsWebhookUrl) throw new Error("URL da planilha não configurada");
+    
+    const masterData = {
+      pets,
+      checklists,
+      groups,
+      medications,
+      medicationLogs,
+      hotelStays,
+      deletedPets: JSON.parse(localStorage.getItem('kahu_deleted_pets') || '[]')
+    };
+
+    try {
+      const response = await fetch(sheetsWebhookUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'MASTER_SYNC', data: masterData })
+      });
+      return true;
+    } catch (e) {
+      console.error("Erro no Push Master Sync:", e);
+      throw e;
+    }
+  };
+
+  const pullMasterSync = async () => {
+    if (!sheetsWebhookUrl) throw new Error("URL da planilha não configurada");
+    
+    try {
+      // O Google Apps Script retorna o JSON via GET
+      const response = await fetch(sheetsWebhookUrl);
+      const cloudData = await response.json();
+      
+      if (cloudData) {
+        if (cloudData.pets) {
+          setPets(cloudData.pets);
+          localStorage.setItem('kahu_master_pets', JSON.stringify(cloudData.pets));
+        }
+        if (cloudData.checklists) {
+          setChecklists(cloudData.checklists);
+          localStorage.setItem('kahu_checklists', JSON.stringify(cloudData.checklists));
+        }
+        if (cloudData.groups) {
+          setGroups(cloudData.groups);
+          localStorage.setItem('kahu_groups', JSON.stringify(cloudData.groups));
+        }
+        if (cloudData.medications) {
+          setMedications(cloudData.medications);
+          localStorage.setItem('kahu_medications', JSON.stringify(cloudData.medications));
+        }
+        if (cloudData.medicationLogs) {
+          setMedicationLogs(cloudData.medicationLogs);
+          localStorage.setItem('kahu_medication_logs', JSON.stringify(cloudData.medicationLogs));
+        }
+        if (cloudData.hotelStays) {
+          setHotelStays(cloudData.hotelStays);
+          localStorage.setItem('kahu_hotel_stays', JSON.stringify(cloudData.hotelStays));
+        }
+        if (cloudData.deletedPets) {
+          localStorage.setItem('kahu_deleted_pets', JSON.stringify(cloudData.deletedPets));
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Erro no Pull Master Sync:", e);
+      throw e;
+    }
+  };
+
   const deleteHotelStay = (id: string) => {
     setHotelStays(prev => {
       const updated = prev.filter(s => s.id !== id);
@@ -300,7 +372,16 @@ const App: React.FC = () => {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Dashboard pets={pets} checklists={checklists} groups={groups} onUpdatePet={updatePetMaster} />} />
+          <Route path="/" element={
+            <Dashboard 
+              pets={pets} 
+              checklists={checklists} 
+              groups={groups} 
+              onUpdatePet={updatePetMaster}
+              onPullSync={pullMasterSync}
+              onPushSync={pushMasterSync}
+            />
+          } />
           <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />
           <Route path="/checklist_looker" element={<ChecklistLooker pets={pets} checklists={checklists} />} />
           <Route path="/cadastro/:petId" element={<Cadastro pets={pets} onSave={updatePetMaster} />} />
@@ -309,7 +390,19 @@ const App: React.FC = () => {
           <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} onSaveMedication={saveMedication} />} />
           <Route path="/pet/:petId" element={<PetChecklist pets={pets} checklists={checklists} onSave={saveChecklist} onUpdatePet={updatePetMaster} />} />
           <Route path="/relatorios" element={<Reports pets={pets} checklists={checklists} />} />
-          <Route path="/settings" element={<Settings pets={pets} checklists={checklists} medications={medications} medicationLogs={medicationLogs} hotelStays={hotelStays} sheetsUrl={sheetsWebhookUrl} onSaveSheetsUrl={saveSheetsUrl} />} />
+          <Route path="/settings" element={
+            <Settings 
+              pets={pets} 
+              checklists={checklists} 
+              medications={medications} 
+              medicationLogs={medicationLogs} 
+              hotelStays={hotelStays} 
+              sheetsUrl={sheetsWebhookUrl} 
+              onSaveSheetsUrl={saveSheetsUrl}
+              onPushSync={pushMasterSync}
+              onPullSync={pullMasterSync}
+            />
+          } />
         </Routes>
       </Layout>
     </Router>

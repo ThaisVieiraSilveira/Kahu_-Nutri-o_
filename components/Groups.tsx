@@ -54,7 +54,7 @@ const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
   const filteredPets = pets.filter(p => 
     p.pet_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ).sort((a, b) => a.pet_nome.localeCompare(b.pet_nome));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

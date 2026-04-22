@@ -10,12 +10,18 @@ interface SettingsProps {
   hotelStays: HotelStay[];
   sheetsUrl: string;
   onSaveSheetsUrl: (url: string) => void;
+  onPushSync: () => Promise<boolean>;
+  onPullSync: () => Promise<boolean>;
 }
 
-const Settings: React.FC<SettingsProps> = ({ pets, checklists, medications, medicationLogs, hotelStays, sheetsUrl, onSaveSheetsUrl }) => {
+const Settings: React.FC<SettingsProps> = ({ 
+  pets, checklists, medications, medicationLogs, hotelStays, sheetsUrl, onSaveSheetsUrl,
+  onPushSync, onPullSync
+}) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [localSheetsUrl, setLocalSheetsUrl] = useState(sheetsUrl);
   const [showScript, setShowScript] = useState(false);
+  const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
 
   const handleSaveUrl = () => {
     onSaveSheetsUrl(localSheetsUrl);
@@ -30,11 +36,51 @@ const Settings: React.FC<SettingsProps> = ({ pets, checklists, medications, medi
     localStorage.removeItem('kahu_medications');
     localStorage.removeItem('kahu_medication_logs');
     localStorage.removeItem('kahu_hotel_stays');
+    localStorage.removeItem('kahu_deleted_pets');
     
     // Feedback visual e recarregamento
     alert('Sistema reiniciado com sucesso! Todos os dados locais foram apagados.');
     window.location.href = '#/';
     window.location.reload();
+  };
+
+  const handlePushSync = async () => {
+    if (!localSheetsUrl) {
+      alert('Configure a URL da planilha primeiro.');
+      return;
+    }
+    setSyncing('push');
+    try {
+      await onPushSync();
+      alert('Dados enviados para a nuvem com sucesso! Agora você pode "Baixar Dados" em outro aparelho.');
+    } catch (e) {
+      alert('Erro ao enviar dados. Verifique a URL e sua conexão.');
+    } finally {
+      setSyncing('none');
+    }
+  };
+
+  const handlePullSync = async () => {
+    if (!localSheetsUrl) {
+      alert('Configure a URL da planilha primeiro.');
+      return;
+    }
+    if (!confirm('Esta ação irá substituir os dados deste aparelho pelos dados salvos na nuvem. Deseja continuar?')) return;
+    
+    setSyncing('pull');
+    try {
+      const success = await onPullSync();
+      if (success) {
+        alert('Dados sincronizados com sucesso!');
+        window.location.reload();
+      } else {
+        alert('Nenhum dado encontrado na nuvem para sincronizar.');
+      }
+    } catch (e) {
+      alert('Erro ao baixar dados. Verifique a URL e se você implantou o novo script corretamente.');
+    } finally {
+      setSyncing('none');
+    }
   };
 
   const exportToCSV = (data: any[], filename: string, headers: string[]) => {
@@ -176,6 +222,45 @@ const Settings: React.FC<SettingsProps> = ({ pets, checklists, medications, medi
 
       <div className="bg-white rounded-[45px] p-8 border border-slate-100 shadow-xl space-y-8">
         <section className="space-y-4">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sincronização entre Dispositivos</h3>
+          <div className="bg-indigo-50 p-6 rounded-[35px] border border-indigo-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">☁️</span>
+              <p className="text-xs font-bold text-indigo-800">
+                Use estes botões para manter celular e computador com os mesmos dados.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button 
+                onClick={handlePushSync}
+                disabled={syncing !== 'none'}
+                className={`py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
+                  syncing === 'push' ? 'bg-slate-200 text-slate-400 transform scale-95' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700 active:scale-95'
+                }`}
+              >
+                <span className="text-2xl">{syncing === 'push' ? '⏳' : '📤'}</span>
+                {syncing === 'push' ? 'Enviando...' : 'Enviar para Nuvem'}
+              </button>
+              
+              <button 
+                onClick={handlePullSync}
+                disabled={syncing !== 'none'}
+                className={`py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
+                  syncing === 'pull' ? 'bg-slate-200 text-slate-400 transform scale-95' : 'bg-white border-2 border-indigo-100 text-indigo-600 shadow-indigo-50 hover:bg-indigo-50 active:scale-95'
+                }`}
+              >
+                <span className="text-2xl">{syncing === 'pull' ? '⏳' : '📥'}</span>
+                {syncing === 'pull' ? 'Baixar da Nuvem' : 'Baixar Dados'}
+              </button>
+            </div>
+            <p className="text-[9px] font-bold text-indigo-400 text-center italic">
+              Atenção: Sempre clique em "Enviar" quando terminar o trabalho em um aparelho e em "Baixar" ao começar em outro.
+            </p>
+          </div>
+        </section>
+
+        <section className="space-y-4">
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sincronização em Tempo Real (Google Sheets)</h3>
           <div className="bg-emerald-50 p-6 rounded-[35px] border border-emerald-100 space-y-4">
             <div className="flex items-center gap-3">
@@ -241,13 +326,41 @@ const Settings: React.FC<SettingsProps> = ({ pets, checklists, medications, medi
                 <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", escolha "Qualquer pessoa".</p>
                 <p className="text-[10px] text-emerald-600 font-bold italic">Nota: O sistema agora envia automaticamente o nome do pet (pet_nome) para facilitar seus relatórios!</p>
                 <pre className="bg-slate-50 p-4 rounded-xl text-[9px] font-mono text-slate-500 overflow-x-auto border border-slate-200">
-{`function doPost(e) {
+{`function doGet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("MASTER_SYNC");
+  var data = { pets: [], checklists: [], groups: [], medications: [], medicationLogs: [], hotelStays: [] };
+  
+  if (sheet) {
+    var jsonStr = sheet.getRange(1, 1).getValue();
+    if (jsonStr) {
+      data = JSON.parse(jsonStr);
+    }
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var data = JSON.parse(e.postData.contents);
   var type = data.type;
   var payload = data.data;
-  var sheetName = "Registros_" + type;
   
+  // Se for uma sincronização completa de estado
+  if (type === 'MASTER_SYNC') {
+    var sheet = ss.getSheetByName("MASTER_SYNC");
+    if (!sheet) {
+      sheet = ss.insertSheet("MASTER_SYNC");
+    }
+    sheet.clear();
+    sheet.getRange(1, 1).setValue(JSON.stringify(payload));
+    return ContentService.createTextOutput("Sync Success");
+  }
+  
+  // Registros de Log Individuais (o que já funcionava)
+  var sheetName = "Registros_" + type;
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
@@ -257,8 +370,6 @@ const Settings: React.FC<SettingsProps> = ({ pets, checklists, medications, medi
   }
   
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  
-  // Adiciona novas colunas automaticamente se novos campos forem enviados
   var updatedHeaders = false;
   Object.keys(payload).forEach(function(key) {
     if (headers.indexOf(key) === -1) {

@@ -10,10 +10,14 @@ interface DashboardProps {
   checklists: ChecklistEntry[];
   groups: PetGroup[];
   onUpdatePet: (pet: Pet) => void;
+  onPullSync: () => Promise<boolean>;
+  onPushSync: () => Promise<boolean>;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdatePet }) => {
+const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdatePet, onPullSync, onPushSync }) => {
   const navigate = useNavigate();
+  
+  const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
   
   const [selectedDay, setSelectedDay] = useState<string>(() => {
     const today = new Date().getDay();
@@ -31,6 +35,7 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
   const [searchTerm, setSearchTerm] = useState('');
   const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
   const [isAddingToDay, setIsAddingToDay] = useState(false);
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
 
   const NAV_DAYS = ['Todos', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -59,8 +64,14 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
 
   const petsNotInDay = useMemo(() => {
     if (selectedDay === 'Todos') return [];
-    return pets.filter(pet => !isPetOnDay(pet, selectedDay));
-  }, [pets, selectedDay]);
+    return pets
+      .filter(pet => !isPetOnDay(pet, selectedDay))
+      .filter(pet => 
+        pet.pet_nome.toLowerCase().includes(modalSearchTerm.toLowerCase()) || 
+        pet.id.toLowerCase().includes(modalSearchTerm.toLowerCase())
+      )
+      .sort((a, b) => a.pet_nome.localeCompare(b.pet_nome));
+  }, [pets, selectedDay, modalSearchTerm]);
 
   const handleAddToDay = (pet: Pet) => {
     const currentDays = (pet.dia_semana || '').split(',').map(d => d.trim()).filter(Boolean);
@@ -86,6 +97,35 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
     onUpdatePet(updatedPet);
   };
 
+  const handlePullSync = async () => {
+    setSyncing('pull');
+    try {
+      const success = await onPullSync();
+      if (success) {
+        alert('Dados atualizados com sucesso!');
+        window.location.reload();
+      } else {
+        alert('Nenhum dado novo na nuvem.');
+      }
+    } catch (e) {
+      alert('Certifique-se que a URL da planilha está correta nos Ajustes.');
+    } finally {
+      setSyncing('none');
+    }
+  };
+
+  const handlePushSync = async () => {
+    setSyncing('push');
+    try {
+      await onPushSync();
+      alert('Dados salvos na nuvem com sucesso!');
+    } catch (e) {
+      alert('Erro ao salvar na nuvem.');
+    } finally {
+      setSyncing('none');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* HEADER */}
@@ -98,6 +138,29 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
           </div>
         </div>
         
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button 
+            onClick={handlePullSync}
+            disabled={syncing !== 'none'}
+            className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-md ${
+              syncing === 'pull' ? 'bg-slate-100 text-slate-400' : 'bg-white text-indigo-600 border-2 border-indigo-50 hover:bg-indigo-50 active:scale-95'
+            }`}
+          >
+            <span>{syncing === 'pull' ? '⏳' : '📥'}</span>
+            {syncing === 'pull' ? 'ATUALIZANDO...' : 'BAIXAR DADOS'}
+          </button>
+          <button 
+            onClick={handlePushSync}
+            disabled={syncing !== 'none'}
+            className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-md ${
+              syncing === 'push' ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-indigo-100'
+            }`}
+          >
+            <span>{syncing === 'push' ? '⏳' : '📤'}</span>
+            {syncing === 'push' ? 'SALVANDO...' : 'SALVAR NA NUVEM'}
+          </button>
+        </div>
+
         <div className="bg-[#EEF7F2] px-6 py-3 rounded-[28px] border border-emerald-100/50 shadow-sm flex items-center gap-4">
           <div className="flex flex-col text-right">
             <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest leading-none mb-1">DATA DO DIÁRIO</span>
@@ -121,8 +184,30 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
                 <h3 className="text-2xl font-black text-emerald-900 tracking-tight">Adicionar à {selectedDay}</h3>
                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Selecione um pet da matilha</p>
               </div>
-              <button onClick={() => setIsAddingToDay(false)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm hover:bg-rose-50 hover:text-rose-500 transition-colors">✕</button>
+              <button 
+                onClick={() => {
+                  setIsAddingToDay(false);
+                  setModalSearchTerm('');
+                }} 
+                className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm hover:bg-rose-50 hover:text-rose-500 transition-colors"
+              >
+                ✕
+              </button>
             </div>
+            
+            <div className="p-4 bg-slate-50 border-b border-slate-100">
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="Pesquisar pet..."
+                  value={modalSearchTerm}
+                  onChange={(e) => setModalSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white border-2 border-emerald-100 rounded-2xl outline-none focus:border-emerald-400 font-bold text-sm"
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors">🔍</span>
+              </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {petsNotInDay.length === 0 ? (
                 <p className="text-center py-10 text-slate-300 font-bold italic">Todos os pets já estão escalados para este dia.</p>
@@ -135,8 +220,9 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
                   >
                     <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-2xl group-hover:bg-white transition-colors">🐶</div>
                     <div>
-                      <p className="font-black text-slate-700">{pet.pet_nome}</p>
-                      <p className="text-[10px] font-bold text-slate-300 uppercase">{pet.id} • {pet.raca}</p>
+                      <p className="font-black text-slate-700 leading-none">{pet.pet_nome}</p>
+                      {pet.tutor_nome && <p className="text-[10px] font-black text-emerald-500 uppercase mt-1 leading-none">{pet.tutor_nome}</p>}
+                      <p className="text-[9px] font-bold text-slate-300 uppercase mt-1">{pet.id} • {pet.raca}</p>
                     </div>
                     <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500 font-black text-xs">ADICIONAR +</span>
                   </button>
@@ -219,7 +305,8 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
                   <div className="w-16 h-16 bg-emerald-50 rounded-[24px] flex items-center justify-center text-4xl shadow-inner border border-white group-hover:scale-110 transition-transform">🐶</div>
                   <div>
                     <h4 className="font-black text-xl text-slate-800 group-hover:text-emerald-600 leading-tight">{pet.pet_nome}</h4>
-                    <p className="text-[11px] font-bold text-slate-300 uppercase tracking-tighter">{pet.id} • {pet.raca}</p>
+                    {pet.tutor_nome && <p className="text-[11px] font-black text-emerald-500 uppercase tracking-tight leading-none mb-1">{pet.tutor_nome}</p>}
+                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">{pet.id} • {pet.raca}</p>
                   </div>
                 </div>
                 <div className="relative flex items-center gap-3">

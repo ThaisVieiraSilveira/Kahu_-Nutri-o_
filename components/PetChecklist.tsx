@@ -75,44 +75,30 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
   const handleWhatsAppNotify = (entry: ChecklistEntry) => {
     if (!pet) return;
     const petName = pet.pet_nome || 'amigão';
+    const tutorName = pet.tutor_nome ? `${pet.tutor_nome}, ` : '';
     
     const foodStatus = entry.comeu;
-    const waterStatus = entry.agua;
-    const fecalScore = entry.escoreFecal;
     
-    let messageParts = [`Olá! Passando para dar notícias do ${petName} hoje.`];
+    let messageParts = [`Olá ${tutorName}! Passando para dar notícias do ${petName} hoje.`];
 
     if (foodStatus) {
-      const foodDetails = entry.quantoOferecido && entry.status !== 'OK' ? ` (${entry.quantoOferecido} oferecido, sobrou ${entry.quantoSobrou || '0'})` : '';
-      const nutritionNote = (foodStatus === 'Não comeu' || foodStatus === 'Comeu metade') 
+      const nutritionNote = (foodStatus === 'Não comeu' || foodStatus === 'Comeu metade' || foodStatus === 'Comeu menos da metade') 
         ? "\n\nCaso continue apresentando falta de apetite, uma consulta com uma nutricionista veterinária pode ser uma ótima opção para ajustar a dieta de forma personalizada."
         : "";
       
       if (foodStatus === 'Comeu tudo') {
         messageParts.push(`Sobre a alimentação: ele comeu super bem, limpou o potinho! 😋`);
       } else {
-        messageParts.push(`Sobre a alimentação: ele ${foodStatus.toLowerCase()}${foodDetails}.${nutritionNote}`);
+        messageParts.push(`Sobre a alimentação: ele ${foodStatus.toLowerCase()}.${nutritionNote}`);
       }
-    }
-
-    if (waterStatus) {
-      if (waterStatus === 'Bebeu muita água') {
-        messageParts.push(`Hidratação: se hidratou super bem ao longo do dia. 💧`);
-      } else {
-        messageParts.push(`Hidratação: ${waterStatus.toLowerCase()}.`);
-      }
-    }
-
-    if (fecalScore) {
-      messageParts.push(`Escore fecal: ${FECAL_SCORE_LABELS[fecalScore]}.`);
     }
 
     if (entry.observacoes) {
       messageParts.push(`\nObservação: ${entry.observacoes}`);
     }
 
-    if (entry.status === 'OK' && foodStatus === 'Comeu tudo' && waterStatus === 'Bebeu muita água') {
-      messageParts = [`Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ${entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : ''}`];
+    if (entry.status === 'OK' && foodStatus === 'Comeu tudo') {
+      messageParts = [`Olá ${tutorName}! Passando para dizer que o ${petName} está tendo um dia maravilhoso hoje! Comeu tudo e está muito feliz. ${entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : ''}`];
     }
 
     const text = messageParts.join('\n\n');
@@ -198,12 +184,13 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                 {[
                   { label: 'Comeu tudo', emoji: '😋' },
                   { label: 'Comeu metade', emoji: '😐' },
+                  { label: 'Comeu menos da metade', emoji: '😕' },
                   { label: 'Não comeu', emoji: '🚫' }
                 ].map(opt => (
                   <button 
                     key={opt.label} 
                     onClick={() => setForm({...form, comeu: form.comeu === opt.label ? undefined : opt.label as any})} 
-                    className={`flex-1 py-5 rounded-[25px] font-black text-[11px] uppercase border-2 transition-all flex flex-col items-center gap-1 ${
+                    className={`flex-1 py-5 rounded-[25px] font-black text-[10px] uppercase border-2 transition-all flex flex-col items-center gap-1 ${
                       form.comeu === opt.label 
                       ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg scale-105 z-10' 
                       : 'bg-slate-50 text-slate-400 border-slate-100'
@@ -213,83 +200,6 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                     {opt.label}
                   </button>
                 ))}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quanto foi oferecido?</label>
-                  <input 
-                    type="text" 
-                    value={form.quantoOferecido} 
-                    onChange={e => setForm({...form, quantoOferecido: e.target.value})} 
-                    placeholder="Ex: 100g"
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-300 shadow-inner"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quanto sobrou?</label>
-                  <input 
-                    type="text" 
-                    value={form.quantoSobrou} 
-                    onChange={e => setForm({...form, quantoSobrou: e.target.value})} 
-                    placeholder="Ex: 20g"
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-300 shadow-inner"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">💧</span>
-                <label className="text-sm font-black text-slate-800 uppercase tracking-widest">HIDRATAÇÃO</label>
-              </div>
-              <div className="flex gap-2">
-                {[
-                  { label: 'Bebeu muita água', emoji: '🌊' },
-                  { label: 'Pouca água', emoji: '🥤' },
-                  { label: 'Não bebeu nada', emoji: '❌' }
-                ].map(opt => (
-                  <button 
-                    key={opt.label} 
-                    onClick={() => setForm({...form, agua: form.agua === opt.label ? undefined : opt.label as any})} 
-                    className={`flex-1 py-5 rounded-[25px] font-black text-[11px] uppercase border-2 transition-all flex flex-col items-center gap-1 ${
-                      form.agua === opt.label 
-                      ? 'bg-sky-500 text-white border-sky-600 shadow-lg scale-105 z-10' 
-                      : 'bg-slate-50 text-slate-400 border-slate-100'
-                    }`}
-                  >
-                    <span className="text-2xl">{opt.emoji}</span>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">💩</span>
-                <label className="text-sm font-black text-slate-800 uppercase tracking-widest">ESCORE FECAL</label>
-              </div>
-              <div className="grid grid-cols-5 gap-2">
-                {[1, 2, 3, 4, 5].map(score => (
-                  <button 
-                    key={score} 
-                    onClick={() => setForm({...form, escoreFecal: form.escoreFecal === score ? undefined : score})} 
-                    className={`flex flex-col items-center py-4 rounded-2xl font-black text-lg border-2 transition-all ${
-                      form.escoreFecal === score 
-                      ? 'bg-amber-500 text-white border-amber-600 shadow-lg scale-110 z-10' 
-                      : 'bg-slate-50 text-slate-300 border-slate-100'
-                    }`}
-                  >
-                    {score}
-                  </button>
-                ))}
-              </div>
-              <div className="bg-amber-50 p-3 rounded-2xl border border-amber-100 text-center animate-in fade-in duration-300">
-                <p className="text-[10px] font-black text-amber-700 uppercase tracking-[0.2em]">
-                  LEGENDA: {form.escoreFecal ? FECAL_SCORE_LABELS[form.escoreFecal] : 'Selecione um escore'}
-                </p>
               </div>
             </div>
 
@@ -418,7 +328,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                   <div>
                     <p className="font-black text-slate-800 text-sm">{new Date(entry.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">
-                      {entry.comeu} • Oferecido: {entry.quantoOferecido || '-'} • Sobra: {entry.quantoSobrou || '-'} • Escore: {entry.escoreFecal}
+                      {entry.comeu} {entry.observacoes ? `• ${entry.observacoes.substring(0, 30)}...` : ''}
                     </p>
                   </div>
                   <span className={`px-4 py-1.5 rounded-full text-[9px] font-black text-white ${entry.status === 'OK' ? 'bg-emerald-500' : 'bg-rose-500'}`}>{entry.status}</span>

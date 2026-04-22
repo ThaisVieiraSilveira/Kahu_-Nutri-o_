@@ -189,6 +189,10 @@ const Hotel: React.FC<HotelProps> = ({
     return getMedLog(medicationId, slot)?.offered || false;
   };
 
+  const sortedPets = useMemo(() => {
+    return [...pets].sort((a, b) => a.pet_nome.localeCompare(b.pet_nome));
+  }, [pets]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -245,7 +249,7 @@ const Hotel: React.FC<HotelProps> = ({
                   className="w-full p-4 bg-indigo-50/30 border-2 border-indigo-50 rounded-2xl font-bold outline-none focus:border-indigo-300 transition-all"
                 >
                   <option value="">Selecionar pet...</option>
-                  {pets.map(p => (
+                  {sortedPets.map(p => (
                     <option key={p.id} value={p.id}>{p.pet_nome}</option>
                   ))}
                 </select>

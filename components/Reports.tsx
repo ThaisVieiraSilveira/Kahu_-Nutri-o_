@@ -42,19 +42,18 @@ const Reports: React.FC<ReportsProps> = ({ pets, checklists }) => {
 
   const handleWhatsAppNotify = (pet: Pet | undefined, entry: ChecklistEntry) => {
     const petName = pet?.pet_nome || 'amigão';
+    const tutorName = pet?.tutor_nome ? `${pet.tutor_nome}, ` : '';
     
     const foodStatus = entry.comeu;
-    const waterStatus = entry.agua;
-    const foodDetails = entry.quantoOferecido && entry.status !== 'OK' ? ` (${entry.quantoOferecido} oferecido, sobrou ${entry.quantoSobrou || '0'})` : '';
-    const nutritionNote = (foodStatus === 'Não comeu' || foodStatus === 'Comeu metade') 
+    const nutritionNote = (foodStatus === 'Não comeu' || foodStatus === 'Comeu metade' || foodStatus === 'Comeu menos da metade') 
       ? "\n\nCaso continue apresentando falta de apetite, uma consulta com uma nutricionista veterinária pode ser uma ótima opção para ajustar a dieta de forma personalizada."
       : "";
     const obs = entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : '';
 
     const messages = {
-      'OK': `Olá! Passando para dizer que o ${petName} teve um dia maravilhoso hoje! Comeu tudo, se hidratou super bem e está muito feliz. Um ótimo descanso para vocês! ${obs}`,
-      'Atenção': `Olá! O ${petName} passou o dia conosco hoje. Ele ${foodStatus === 'Comeu tudo' ? 'comeu bem' : foodStatus.toLowerCase()}${foodDetails} e ${waterStatus === 'Bebeu muita água' ? 'se hidratou bem' : 'bebeu pouca água'}. Demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa.${nutritionNote} ${obs}`,
-      'Alerta': `Olá. Gostaríamos de informar que o ${petName} hoje ${foodStatus === 'Não comeu' ? 'não quis comer' : 'comeu pouco'}${foodDetails} e ${waterStatus === 'Não bebeu nada' ? 'não quis beber água' : 'bebeu pouca água'}. Recomendamos uma atenção especial à saúde dele hoje à noite. Qualquer dúvida estamos à disposição.${nutritionNote}${obs}`
+      'OK': `Olá ${tutorName}! Passando para dizer que o ${petName} está tendo um dia maravilhoso hoje! Comeu tudo e está muito feliz. ${obs}`,
+      'Atenção': `Olá ${tutorName}! O ${petName} está conosco hoje. Ele ${foodStatus === 'Comeu tudo' ? 'comeu bem' : foodStatus.toLowerCase()}. Demonstrou um comportamento um pouco diferente do habitual, mas está bem! Fiquem de olho em casa qualquer coisa.${nutritionNote} ${obs}`,
+      'Alerta': `Olá ${tutorName}! Gostaríamos de informar que o ${petName} hoje ${foodStatus === 'Não comeu' ? 'não quis comer' : 'comeu pouco'}. Recomendamos uma atenção especial à saúde dele. Qualquer dúvida estamos à disposição.${nutritionNote}${obs}`
     };
 
     const text = messages[entry.status as keyof typeof messages] || messages['Atenção'];
