@@ -26,7 +26,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
   const date = searchParams.get('date') || todayLocal();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<'daily' | 'master' | 'history' | 'messages'>('daily');
+  const [activeTab, setActiveTab] = useState<'master' | 'history' | 'messages'>('messages');
   const pet = useMemo(() => pets.find(p => p.id === petId), [pets, petId]);
   
   const currentDayName = useMemo(() => {
@@ -171,90 +171,12 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
       </div>
 
       <div className="flex bg-slate-100 p-1.5 rounded-full shadow-inner">
-        <button onClick={() => setActiveTab('daily')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'daily' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400'}`}>Checklist Diário</button>
         <button onClick={() => setActiveTab('messages')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'messages' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400'}`}>Mensagens</button>
         <button onClick={() => setActiveTab('master')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'master' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400'}`}>Ficha Mestre</button>
         <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400'}`}>Histórico</button>
       </div>
 
       <div className="min-h-[400px]">
-        {activeTab === 'daily' && (
-          <div className="bg-white rounded-[40px] p-8 shadow-2xl border border-emerald-50 space-y-8 animate-in slide-in-from-bottom-4">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🍱</span>
-                <label className="text-sm font-black text-slate-800 uppercase tracking-widest">ALIMENTAÇÃO DO DIA</label>
-              </div>
-              <div className="flex gap-2">
-                {[
-                  { label: 'Comeu tudo', emoji: '😋' },
-                  { label: 'Comeu metade', emoji: '😐' },
-                  { label: 'Comeu menos da metade', emoji: '😕' },
-                  { label: 'Não comeu', emoji: '🚫' }
-                ].map(opt => (
-                  <button 
-                    key={opt.label} 
-                    onClick={() => setForm({...form, comeu: form.comeu === opt.label ? undefined : opt.label as any})} 
-                    className={`flex-1 py-5 rounded-[25px] font-black text-[10px] uppercase border-2 transition-all flex flex-col items-center gap-1 ${
-                      form.comeu === opt.label 
-                      ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg scale-105 z-10' 
-                      : 'bg-slate-50 text-slate-400 border-slate-100'
-                    }`}
-                  >
-                    <span className="text-2xl">{opt.emoji}</span>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📝</span>
-                <label className="text-sm font-black text-slate-800 uppercase tracking-widest">OBSERVAÇÕES DO DIA</label>
-              </div>
-              <textarea 
-                value={form.observacoes} 
-                onChange={e => setForm({...form, observacoes: e.target.value})} 
-                className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[30px] font-bold text-slate-700 outline-none focus:border-emerald-300 min-h-[120px] shadow-inner" 
-                placeholder="Como foi o dia desse pet?" 
-              />
-            </div>
-
-            <div className="flex flex-col gap-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <button 
-                  onClick={() => handleSave('stay')} 
-                  className="py-4 bg-white border-2 border-emerald-100 text-emerald-600 font-black rounded-full shadow-sm text-sm hover:bg-emerald-50 active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  APENAS SALVAR 💾
-                </button>
-                <button 
-                  onClick={() => handleSave('exit')} 
-                  className="py-4 bg-slate-100 text-slate-600 font-black rounded-full shadow-sm text-sm hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  SALVAR E SAIR 🏠
-                </button>
-              </div>
-
-              <div className="flex gap-4 items-stretch">
-                {nextPet && (
-                  <button 
-                    onClick={() => handleSave('next')}
-                    className="flex-grow py-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[35px] flex items-center justify-center shadow-lg shadow-emerald-700/20 active:scale-95 transition-all group overflow-hidden border-2 border-white gap-3"
-                  >
-                    <div className="text-left">
-                      <p className="text-[10px] font-black opacity-50 uppercase tracking-widest leading-none">PRÓXIMO PET</p>
-                      <p className="text-xl font-black">{nextPet.pet_nome}</p>
-                    </div>
-                    <span className="text-3xl group-hover:translate-x-1 transition-transform">→</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'messages' && (
           <div className="bg-white rounded-[40px] p-8 shadow-2xl border border-emerald-50 space-y-8 animate-in zoom-in-95 duration-300">
             <div className="space-y-4">
@@ -265,7 +187,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
               
               <div className="bg-slate-50 p-6 rounded-[30px] border-2 border-slate-100">
                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Prévia da Mensagem:</p>
-                <div className="whitespace-pre-wrap text-sm font-bold text-slate-700 leading-relaxed italic">
+                <div className="whitespace-pre-wrap text-sm font-bold text-slate-700 leading-relaxed italic mb-6">
                   {(() => {
                     const petName = pet.pet_nome || 'amigão';
                     const tutorName = pet.tutor_nome ? `${pet.tutor_nome}, ` : '';
@@ -283,6 +205,21 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                     }
                     return messageParts.join('\n\n');
                   })()}
+                </div>
+
+                <div className="space-y-2 border-t border-slate-200 pt-4">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Adicionar/Editar Observação:</label>
+                  <textarea 
+                    value={form.observacoes} 
+                    onChange={e => {
+                      const newObs = e.target.value;
+                      setForm({...form, observacoes: newObs});
+                      // Auto-save when editing in messages tab
+                      onSave({ ...form, petId: pet.id, date, status: calculateStatus({...form, observacoes: newObs}) } as ChecklistEntry);
+                    }}
+                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-600 outline-none focus:border-emerald-300 shadow-inner min-h-[80px]"
+                    placeholder="Algo mais para contar ao tutor?"
+                  />
                 </div>
               </div>
               

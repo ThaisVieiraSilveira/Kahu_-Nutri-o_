@@ -14,7 +14,7 @@ export const calculateStatus = (data: Partial<ChecklistEntry>): DayStatus => {
     return 'OK';
   }
 
-  // Comeu metade ou Comeu menos da metade
+  // Comeu metade, Comeu menos da metade ou Comeu pouco
   return 'Atenção';
 };
 

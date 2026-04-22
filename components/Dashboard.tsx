@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, ChecklistEntry, PetGroup } from '../types';
-import { getStatusColor, getStatusEmoji } from '../utils/status';
+import { getStatusColor, getStatusEmoji, calculateStatus } from '../utils/status';
 import { isPetOnDay } from '../utils/date';
 
 interface DashboardProps {
@@ -12,13 +12,19 @@ interface DashboardProps {
   onUpdatePet: (pet: Pet) => void;
   onPullSync: () => Promise<boolean>;
   onPushSync: () => Promise<boolean>;
+  onSaveChecklist: (entry: ChecklistEntry) => void;
   lastSync?: string;
+  isSyncing?: boolean;
+  sheetsWebhookUrl?: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdatePet, onPullSync, onPushSync, lastSync }) => {
+const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdatePet, onPullSync, onPushSync, onSaveChecklist, lastSync, isSyncing, sheetsWebhookUrl }) => {
   const navigate = useNavigate();
   
   const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
+  const [quickEntries, setQuickEntries] = useState<Record<string, ChecklistEntry['comeu']>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
   
   const [selectedDay, setSelectedDay] = useState<string>(() => {
     const today = new Date().getDay();
@@ -134,8 +140,54 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
     }
   };
 
+  const handleQuickSave = async (e: React.MouseEvent, petId: string) => {
+    e.stopPropagation();
+    const eatVal = quickEntries[petId];
+    if (!eatVal) return alert('Selecione uma opção de alimentação primeiro.');
+
+    setSavingId(petId);
+    
+    const existing = checklists.find(c => c.petId === petId && c.date === searchDate);
+    
+    const newEntry: ChecklistEntry = {
+      petId,
+      date: searchDate,
+      comeu: eatVal,
+      status: calculateStatus({ comeu: eatVal }),
+      agua: existing?.agua || 'Pouca água',
+      teveEstimuloHidratacao: existing?.teveEstimuloHidratacao || 'Não',
+      comportamento: existing?.comportamento || '-',
+      alertas: existing?.alertas || '-',
+      observacoes: (quickEntries[`obs_${petId}`] as string) || existing?.observacoes || '',
+      escoreFecal: existing?.escoreFecal || 3,
+      quantoOferecido: existing?.quantoOferecido || '-',
+      quantoSobrou: existing?.quantoSobrou || '-',
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      await onSaveChecklist(newEntry);
+      setSavingId(null);
+      setSavedId(petId);
+      setTimeout(() => setSavedId(null), 3000);
+    } catch (err) {
+      setSavingId(null);
+      console.error("Erro ao salvar:", err);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {!sheetsWebhookUrl && (
+        <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-3xl flex items-center gap-4 animate-bounce">
+          <span className="text-3xl">⚠️</span>
+          <div>
+            <p className="text-amber-900 font-black text-xs uppercase tracking-widest">Sincronização Desativada</p>
+            <p className="text-amber-700 text-[10px] font-bold">Configure a URL da planilha nos Ajustes para salvar entre PC e Celular.</p>
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -176,7 +228,15 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
           </button>
         </div>
 
-        <div className="bg-[#EEF7F2] px-6 py-3 rounded-[28px] border border-emerald-100/50 shadow-sm flex items-center gap-4">
+        <div className="bg-[#EEF7F2] px-6 py-3 rounded-[28px] border border-emerald-100/50 shadow-sm flex items-center gap-4 relative overflow-hidden">
+          {isSyncing && (
+            <div className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center pointer-events-none">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></span>
+                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Sincronizando...</span>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col text-right">
             <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest leading-none mb-1">DATA DO DIÁRIO</span>
             <input
@@ -340,20 +400,73 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
                 </div>
               </div>
 
-              <div className="bg-[#F8FBFA] p-5 rounded-[28px] border border-emerald-50/50 mt-auto space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">AGENDA</span>
-                  <div className="flex flex-wrap gap-1 justify-end">
-                    {(pet.dia_semana || '-').split(',').map(d => (
-                       <span key={d} className="text-emerald-600 font-black text-[9px] uppercase tracking-tighter bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100/50">{d.trim()}</span>
+              <div className="bg-[#F8FBFA] p-5 rounded-[28px] border border-emerald-50/50 mt-auto space-y-4">
+                {/* Quick Eating Selection */}
+                <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Alimentação Rápida</span>
+                    <button 
+                      onClick={(e) => handleQuickSave(e, pet.id)}
+                      disabled={savingId === pet.id}
+                      className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${
+                        savingId === pet.id 
+                          ? 'bg-slate-200 text-slate-400' 
+                          : savedId === pet.id
+                            ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-200'
+                            : 'bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:scale-105 active:scale-95'
+                      }`}
+                    >
+                      {savingId === pet.id ? '⏳' : savedId === pet.id ? 'SALVO! ✅' : 'SALVAR ✔️'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: 'Comeu tudo', internal: 'Comeu tudo', emoji: '😋' },
+                      { label: 'Comeu pouco', internal: 'Comeu pouco', emoji: '🤏' },
+                      { label: 'Comeu metade', internal: 'Comeu metade', emoji: '😐' },
+                      { label: 'Menos da metade', internal: 'Comeu menos da metade', emoji: '😕' }
+                    ].map(opt => (
+                      <button
+                        key={opt.label}
+                        onClick={() => setQuickEntries(prev => ({ ...prev, [pet.id]: opt.internal as any }))}
+                        className={`py-2 rounded-xl text-[8px] font-black uppercase tracking-tighter border-2 transition-all flex items-center justify-center gap-1 ${
+                          quickEntries[pet.id] === opt.internal 
+                          ? 'bg-emerald-500 text-white border-emerald-600 shadow-md transform scale-[1.02]' 
+                          : 'bg-white text-slate-400 border-slate-100/50'
+                        }`}
+                      >
+                        <span>{opt.emoji}</span>
+                        {opt.label}
+                      </button>
                     ))}
                   </div>
+
+                  <div className="mt-2">
+                    <input 
+                      type="text"
+                      placeholder="Observação rápida..."
+                      value={quickEntries[`obs_${pet.id}`] || ''}
+                      onChange={(e) => setQuickEntries(prev => ({ ...prev, [`obs_${pet.id}`]: e.target.value }))}
+                      className="w-full px-3 py-2 bg-white border border-slate-100 rounded-xl text-[10px] font-bold text-slate-600 outline-none focus:border-emerald-300 shadow-inner"
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${pet.possui_alergia.toLowerCase() === 'sim' ? 'text-rose-500 animate-pulse' : 'text-slate-300'}`}>
-                    {pet.possui_alergia.toLowerCase() === 'sim' ? 'ALERGIA ⚠️' : 'SAUDÁVEL'}
-                  </span>
-                  <span className="text-sky-600 bg-sky-50 px-3 py-1 rounded-xl border border-sky-100 font-black text-[10px] uppercase">{pet.tipo_alimentacao}</span>
+
+                <div className="border-t border-slate-100 pt-3 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">AGENDA</span>
+                    <div className="flex flex-wrap gap-1 justify-end">
+                      {(pet.dia_semana || '-').split(',').map(d => (
+                         <span key={d} className="text-emerald-600 font-black text-[9px] uppercase tracking-tighter bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100/50">{d.trim()}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${pet.possui_alergia.toLowerCase() === 'sim' ? 'text-rose-500 animate-pulse' : 'text-slate-300'}`}>
+                      {pet.possui_alergia.toLowerCase() === 'sim' ? 'ALERGIA ⚠️' : 'SAUDÁVEL'}
+                    </span>
+                    <span className="text-sky-600 bg-sky-50 px-3 py-1 rounded-xl border border-sky-100 font-black text-[10px] uppercase">{pet.tipo_alimentacao}</span>
+                  </div>
                 </div>
               </div>
             </div>

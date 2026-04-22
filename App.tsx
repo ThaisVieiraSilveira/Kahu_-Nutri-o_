@@ -27,9 +27,11 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sheetsWebhookUrl, setSheetsWebhookUrl] = useState<string>(localStorage.getItem('kahu_sheets_url') || '');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const syncToSheets = async (type: string, data: any) => {
     if (!sheetsWebhookUrl) return;
+    setIsSyncing(true);
     try {
       // Enriquecer os dados com o nome do pet para facilitar a leitura no Sheets
       const enrichedData = { ...data };
@@ -48,6 +50,8 @@ const App: React.FC = () => {
       });
     } catch (e) {
       console.error("Erro ao sincronizar com Sheets:", e);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 800);
     }
   };
 
@@ -123,6 +127,32 @@ const App: React.FC = () => {
 
         const storedHotel = localStorage.getItem('kahu_hotel_stays');
         if (storedHotel) setHotelStays(JSON.parse(storedHotel));
+
+        // Auto-pull se tiver URL
+        if (sheetsWebhookUrl) {
+          try {
+            console.log("Auto-pull de inicialização...");
+            const response = await fetch(sheetsWebhookUrl);
+            if (response.ok) {
+              const cloudData = await response.json();
+              if (cloudData) {
+                if (cloudData.pets) {
+                  setPets(cloudData.pets);
+                  localStorage.setItem('kahu_master_pets', JSON.stringify(cloudData.pets));
+                }
+                if (cloudData.checklists) {
+                  setChecklists(cloudData.checklists);
+                  localStorage.setItem('kahu_checklists', JSON.stringify(cloudData.checklists));
+                }
+                const now = new Date().toLocaleString('pt-BR');
+                localStorage.setItem('kahu_last_sync', now);
+                setLastSync(now);
+              }
+            }
+          } catch (autoErr) {
+            console.warn("Auto-pull inicial falhou (normal se a planilha for lenta ou sem CORS)");
+          }
+        }
       } catch (e) {
         console.error("Erro ao carregar Kahu Care:", e);
       } finally {
@@ -405,7 +435,10 @@ const App: React.FC = () => {
               onUpdatePet={updatePetMaster}
               onPullSync={pullMasterSync}
               onPushSync={pushMasterSync}
+              onSaveChecklist={saveChecklist}
               lastSync={lastSync}
+              isSyncing={isSyncing}
+              sheetsWebhookUrl={sheetsWebhookUrl}
             />
           } />
           <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />
