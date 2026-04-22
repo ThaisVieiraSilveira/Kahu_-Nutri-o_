@@ -133,29 +133,38 @@ const App: React.FC = () => {
   }, []);
 
   const saveChecklist = (entry: ChecklistEntry) => {
+    const entryWithTimestamp = { ...entry, updatedAt: new Date().toISOString() };
     setChecklists(prev => {
       const filtered = prev.filter(c => !(c.petId === entry.petId && c.date === entry.date));
-      const updated = [...filtered, entry];
-      localStorage.setItem('kahu_checklists', JSON.stringify(updated));
+      const updated = [...filtered, entryWithTimestamp];
+      try {
+        localStorage.setItem('kahu_checklists', JSON.stringify(updated));
+      } catch (e) {
+        console.error("Erro ao salvar no localStorage:", e);
+        alert("Espaço de armazenamento cheio! Por favor, exporte seus dados e limpe o sistema.");
+      }
       return updated;
     });
-    syncToSheets('checklist', entry);
+    syncToSheets('checklist', entryWithTimestamp);
   };
 
   const updatePetMaster = (updatedPet: Pet) => {
     setPets(prev => {
       const exists = prev.find(p => p.id === updatedPet.id);
-      let newPets;
-      if (exists) {
-        newPets = prev.map(p => p.id === updatedPet.id ? updatedPet : p);
-      } else {
-        newPets = [...prev, updatedPet];
-      }
+      const newPets = exists 
+        ? prev.map(p => p.id === updatedPet.id ? updatedPet : p)
+        : [...prev, updatedPet];
       
-      localStorage.setItem('kahu_master_pets', JSON.stringify(newPets));
+      saveToLocal('kahu_master_pets', newPets);
       return newPets;
     });
 
+    // Auto-sync individual pet record
+    syncToSheets('pet', updatedPet);
+    
+    // Auto-sync full state after structural change (with a small delay)
+    setTimeout(() => pushMasterSync().catch(console.error), 2000);
+    
     // Auto-sync with day groups (g_seg, g_ter, etc)
     setGroups(prev => {
       const dayMap: Record<string, string> = {
@@ -243,26 +252,40 @@ const App: React.FC = () => {
     localStorage.setItem('kahu_sheets_url', url);
   };
 
+  const [lastSync, setLastSync] = useState<string>(localStorage.getItem('kahu_last_sync') || '');
+
+  const saveToLocal = (key: string, data: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.error(`Erro ao salvar ${key}:`, e);
+    }
+  };
+
   const pushMasterSync = async () => {
     if (!sheetsWebhookUrl) throw new Error("URL da planilha não configurada");
     
+    // Get fresh data from localStorage or state if possible
     const masterData = {
-      pets,
-      checklists,
-      groups,
-      medications,
-      medicationLogs,
-      hotelStays,
+      pets: JSON.parse(localStorage.getItem('kahu_master_pets') || '[]'),
+      checklists: JSON.parse(localStorage.getItem('kahu_checklists') || '[]'),
+      groups: JSON.parse(localStorage.getItem('kahu_groups') || '[]'),
+      medications: JSON.parse(localStorage.getItem('kahu_medications') || '[]'),
+      medicationLogs: JSON.parse(localStorage.getItem('kahu_medication_logs') || '[]'),
+      hotelStays: JSON.parse(localStorage.getItem('kahu_hotel_stays') || '[]'),
       deletedPets: JSON.parse(localStorage.getItem('kahu_deleted_pets') || '[]')
     };
 
     try {
-      const response = await fetch(sheetsWebhookUrl, {
+      await fetch(sheetsWebhookUrl, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'MASTER_SYNC', data: masterData })
       });
+      const now = new Date().toLocaleString('pt-BR');
+      setLastSync(now);
+      localStorage.setItem('kahu_last_sync', now);
       return true;
     } catch (e) {
       console.error("Erro no Push Master Sync:", e);
@@ -274,38 +297,40 @@ const App: React.FC = () => {
     if (!sheetsWebhookUrl) throw new Error("URL da planilha não configurada");
     
     try {
-      // O Google Apps Script retorna o JSON via GET
       const response = await fetch(sheetsWebhookUrl);
       const cloudData = await response.json();
       
       if (cloudData) {
         if (cloudData.pets) {
           setPets(cloudData.pets);
-          localStorage.setItem('kahu_master_pets', JSON.stringify(cloudData.pets));
+          saveToLocal('kahu_master_pets', cloudData.pets);
         }
         if (cloudData.checklists) {
           setChecklists(cloudData.checklists);
-          localStorage.setItem('kahu_checklists', JSON.stringify(cloudData.checklists));
+          saveToLocal('kahu_checklists', cloudData.checklists);
         }
         if (cloudData.groups) {
           setGroups(cloudData.groups);
-          localStorage.setItem('kahu_groups', JSON.stringify(cloudData.groups));
+          saveToLocal('kahu_groups', cloudData.groups);
         }
         if (cloudData.medications) {
           setMedications(cloudData.medications);
-          localStorage.setItem('kahu_medications', JSON.stringify(cloudData.medications));
+          saveToLocal('kahu_medications', cloudData.medications);
         }
         if (cloudData.medicationLogs) {
           setMedicationLogs(cloudData.medicationLogs);
-          localStorage.setItem('kahu_medication_logs', JSON.stringify(cloudData.medicationLogs));
+          saveToLocal('kahu_medication_logs', cloudData.medicationLogs);
         }
         if (cloudData.hotelStays) {
           setHotelStays(cloudData.hotelStays);
-          localStorage.setItem('kahu_hotel_stays', JSON.stringify(cloudData.hotelStays));
+          saveToLocal('kahu_hotel_stays', cloudData.hotelStays);
         }
         if (cloudData.deletedPets) {
-          localStorage.setItem('kahu_deleted_pets', JSON.stringify(cloudData.deletedPets));
+          saveToLocal('kahu_deleted_pets', cloudData.deletedPets);
         }
+        const now = new Date().toLocaleString('pt-BR');
+        setLastSync(now);
+        localStorage.setItem('kahu_last_sync', now);
         return true;
       }
       return false;
@@ -380,6 +405,7 @@ const App: React.FC = () => {
               onUpdatePet={updatePetMaster}
               onPullSync={pullMasterSync}
               onPushSync={pushMasterSync}
+              lastSync={lastSync}
             />
           } />
           <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />

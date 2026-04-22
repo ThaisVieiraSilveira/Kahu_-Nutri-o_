@@ -54,6 +54,7 @@ export interface ChecklistEntry {
   alertas: string;
   observacoes: string;
   escoreFecal: number;
+  updatedAt?: string;
   fotos?: string[];
 }
 

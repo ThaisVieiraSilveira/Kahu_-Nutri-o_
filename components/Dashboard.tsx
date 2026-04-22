@@ -12,9 +12,10 @@ interface DashboardProps {
   onUpdatePet: (pet: Pet) => void;
   onPullSync: () => Promise<boolean>;
   onPushSync: () => Promise<boolean>;
+  lastSync?: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdatePet, onPullSync, onPushSync }) => {
+const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdatePet, onPullSync, onPushSync, lastSync }) => {
   const navigate = useNavigate();
   
   const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
@@ -32,8 +33,15 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
     return dayMap[today] || 'Segunda';
   });
 
+  const todayLocal = () => {
+    const d = new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    const local = new Date(d.getTime() - offset);
+    return local.toISOString().split('T')[0];
+  };
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchDate, setSearchDate] = useState(todayLocal());
   const [isAddingToDay, setIsAddingToDay] = useState(false);
   const [modalSearchTerm, setModalSearchTerm] = useState('');
 
@@ -132,9 +140,16 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-4xl font-black text-emerald-900 mb-1 tracking-tighter">Matilha Kahu</h2>
-          <div className="flex items-center gap-2">
-            <span className="bg-emerald-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">CADASTROS: {pets.length}</span>
-            <p className="text-emerald-700/40 font-bold italic text-[11px]">Escala de {selectedDay}: {filteredPets.length} pets</p>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="bg-emerald-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">CADASTROS: {pets.length}</span>
+              <p className="text-emerald-700/40 font-bold italic text-[11px]">Escala de {selectedDay}: {filteredPets.length} pets</p>
+            </div>
+            {lastSync && (
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                ☁️ Nuvem sync: {lastSync}
+              </p>
+            )}
           </div>
         </div>
         

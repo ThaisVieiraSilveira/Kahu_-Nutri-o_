@@ -15,10 +15,18 @@ interface PetChecklistProps {
 const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, onUpdatePet }) => {
   const { petId } = useParams();
   const [searchParams] = useSearchParams();
-  const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+  
+  const todayLocal = () => {
+    const d = new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    const local = new Date(d.getTime() - offset);
+    return local.toISOString().split('T')[0];
+  };
+
+  const date = searchParams.get('date') || todayLocal();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<'daily' | 'master' | 'history'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'master' | 'history' | 'messages'>('daily');
   const pet = useMemo(() => pets.find(p => p.id === petId), [pets, petId]);
   
   const currentDayName = useMemo(() => {
@@ -43,14 +51,14 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
 
   const [form, setForm] = useState<Partial<ChecklistEntry>>({
     comeu: undefined,
-    agua: undefined,
-    quantoOferecido: '',
-    quantoSobrou: '',
+    agua: 'Pouca água',
+    quantoOferecido: '-',
+    quantoSobrou: '-',
     teveEstimuloHidratacao: 'Não',
-    comportamento: '',
-    alertas: '',
+    comportamento: '-',
+    alertas: '-',
     observacoes: '',
-    escoreFecal: undefined,
+    escoreFecal: 3,
     ...existingEntry
   });
 
@@ -60,14 +68,14 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     } else {
       setForm({
         comeu: undefined,
-        agua: undefined,
-        quantoOferecido: '',
-        quantoSobrou: '',
+        agua: 'Pouca água',
+        quantoOferecido: '-',
+        quantoSobrou: '-',
         teveEstimuloHidratacao: 'Não',
-        comportamento: '',
-        alertas: '',
+        comportamento: '-',
+        alertas: '-',
         observacoes: '',
-        escoreFecal: undefined,
+        escoreFecal: 3,
       });
     }
   }, [existingEntry, petId]);
@@ -116,7 +124,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     window.open(url, '_blank');
   };
 
-  const handleSave = (mode: 'exit' | 'next' | 'stay' | 'whatsapp') => {
+  const handleSave = (mode: 'exit' | 'next' | 'stay') => {
     if (!pet) return;
     const entry = { 
       ...form, 
@@ -126,10 +134,6 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
     } as ChecklistEntry;
     
     onSave(entry);
-
-    if (mode === 'whatsapp') {
-      handleWhatsAppNotify(entry);
-    }
 
     if (mode === 'next' && nextPet) {
       navigate(`/pet/${nextPet.id}?date=${date}`);
@@ -168,6 +172,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
 
       <div className="flex bg-slate-100 p-1.5 rounded-full shadow-inner">
         <button onClick={() => setActiveTab('daily')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'daily' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400'}`}>Checklist Diário</button>
+        <button onClick={() => setActiveTab('messages')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'messages' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400'}`}>Mensagens</button>
         <button onClick={() => setActiveTab('master')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'master' ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400'}`}>Ficha Mestre</button>
         <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400'}`}>Histórico</button>
       </div>
@@ -233,26 +238,64 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
               </div>
 
               <div className="flex gap-4 items-stretch">
-                <button 
-                  onClick={() => handleSave('whatsapp')} 
-                  className="flex-grow py-6 bg-emerald-500 text-white font-black rounded-full shadow-lg shadow-emerald-500/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
-                >
-                  SALVAR E ENVIAR WHATSAPP 💬
-                </button>
-
                 {nextPet && (
                   <button 
                     onClick={() => handleSave('next')}
-                    className="w-24 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[35px] flex flex-col items-center justify-center shadow-lg shadow-emerald-700/20 active:scale-95 transition-all group overflow-hidden border-2 border-white"
+                    className="flex-grow py-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[35px] flex items-center justify-center shadow-lg shadow-emerald-700/20 active:scale-95 transition-all group overflow-hidden border-2 border-white gap-3"
                   >
-                    <span className="text-3xl group-hover:translate-x-1 transition-transform">→</span>
-                    <div className="text-[8px] font-black uppercase text-center px-1">
-                      <p className="opacity-50">PRÓXIMO</p>
-                      <p className="truncate w-full">{nextPet.pet_nome}</p>
+                    <div className="text-left">
+                      <p className="text-[10px] font-black opacity-50 uppercase tracking-widest leading-none">PRÓXIMO PET</p>
+                      <p className="text-xl font-black">{nextPet.pet_nome}</p>
                     </div>
+                    <span className="text-3xl group-hover:translate-x-1 transition-transform">→</span>
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'messages' && (
+          <div className="bg-white rounded-[40px] p-8 shadow-2xl border border-emerald-50 space-y-8 animate-in zoom-in-95 duration-300">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">💬</span>
+                <label className="text-sm font-black text-slate-800 uppercase tracking-widest">NOTIFICAR TUTOR</label>
+              </div>
+              
+              <div className="bg-slate-50 p-6 rounded-[30px] border-2 border-slate-100">
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Prévia da Mensagem:</p>
+                <div className="whitespace-pre-wrap text-sm font-bold text-slate-700 leading-relaxed italic">
+                  {(() => {
+                    const petName = pet.pet_nome || 'amigão';
+                    const tutorName = pet.tutor_nome ? `${pet.tutor_nome}, ` : '';
+                    const foodStatus = form.comeu;
+                    let messageParts = [`Olá ${tutorName}! Passando para dar notícias do ${petName} hoje.`];
+                    if (foodStatus) {
+                      if (foodStatus === 'Comeu tudo') {
+                        messageParts.push(`Sobre a alimentação: ele comeu super bem, limpou o potinho! 😋`);
+                      } else {
+                        messageParts.push(`Sobre a alimentação: ele ${foodStatus.toLowerCase()}.`);
+                      }
+                    }
+                    if (form.observacoes) {
+                      messageParts.push(`\nObservação: ${form.observacoes}`);
+                    }
+                    return messageParts.join('\n\n');
+                  })()}
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => handleWhatsAppNotify({ ...form, petId: pet.id, date, status: calculateStatus(form) } as ChecklistEntry)}
+                className="w-full py-6 bg-emerald-500 text-white font-black rounded-full shadow-lg shadow-emerald-500/20 text-xl hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center gap-3"
+              >
+                ENVIAR PELO WHATSAPP 📱
+              </button>
+              
+              <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                A mensagem será enviada para: <span className="text-slate-600">{pet.tutor_nome} ({pet.telefone})</span>
+              </p>
             </div>
           </div>
         )}
