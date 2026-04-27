@@ -296,7 +296,7 @@ const Settings: React.FC<SettingsProps> = ({
                 <input 
                   type="text" 
                   value={localSheetsUrl}
-                  onChange={(e) => setLocalSheetsUrl(e.target.value)}
+                  onChange={(e) => setLocalSheetsUrl(e.target.value.trim())}
                   placeholder="https://script.google.com/macros/s/.../exec"
                   className="flex-1 p-4 bg-white border-2 border-emerald-100 rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-300 shadow-sm"
                 />
@@ -313,16 +313,20 @@ const Settings: React.FC<SettingsProps> = ({
                     alert('Por favor, insira uma URL primeiro.');
                     return;
                   }
+                  if (!localSheetsUrl.startsWith('https://script.google.com/')) {
+                    alert('URL inválida! Certifique-se de copiar o link do Web App do Google Apps Script.');
+                    return;
+                  }
                   try {
-                    const response = await fetch(localSheetsUrl, {
+                    await fetch(localSheetsUrl, {
                       method: 'POST',
                       mode: 'no-cors',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ type: 'TESTE', data: { mensagem: 'Conexão bem-sucedida!' } })
+                      body: JSON.stringify({ type: 'TESTE', data: { mensagem: 'Conexão bem-sucedida!', pet_nome: 'PET_TESTE' } })
                     });
-                    alert('Teste enviado! Verifique se uma nova aba "Registros_TESTE" apareceu na sua planilha do Google.');
-                  } catch (e) {
-                    alert('Erro ao enviar teste. Verifique a URL e sua conexão.');
+                    alert('Comando de teste enviado! Como o Google Sheets não confirma o recebimento instantâneo (Cross-Origin), verifique agora mesmo em sua planilha se uma nova aba "Registros_TESTE" apareceu. Se apareceu, está funcionando!');
+                  } catch (e: any) {
+                    alert(`Erro ao conectar: ${e.message}. Verifique sua conexão e se a URL está correta.`);
                   }
                 }}
                 className="w-full py-2 bg-white border-2 border-emerald-100 text-emerald-600 font-bold rounded-xl hover:bg-emerald-50 transition-all text-[10px] uppercase tracking-widest"
@@ -340,21 +344,37 @@ const Settings: React.FC<SettingsProps> = ({
 
             {showScript && (
               <div className="bg-white p-6 rounded-[25px] border border-emerald-100 space-y-4 animate-in slide-in-from-top-2">
-                <p className="text-[11px] font-bold text-slate-600">1. Crie uma nova Planilha no Google.</p>
-                <p className="text-[11px] font-bold text-slate-600">2. Vá em Extensões {'>'} Apps Script.</p>
-                <p className="text-[11px] font-bold text-slate-600">3. Cole o código abaixo e clique em "Implantar" {'>'} "Nova Implantação" {'>'} "App da Web".</p>
-                <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", escolha "Qualquer pessoa".</p>
-                <p className="text-[10px] text-emerald-600 font-bold italic">Nota: O sistema agora envia automaticamente o nome do pet (pet_nome) para facilitar seus relatórios!</p>
+                <div className="space-y-2">
+                  <p className="text-[11px] font-black text-slate-800">PASSO A PASSO:</p>
+                  <p className="text-[11px] font-bold text-slate-600">1. Crie uma nova Planilha no Google.</p>
+                  <p className="text-[11px] font-bold text-slate-600">2. Vá em Extensões {'>'} Apps Script.</p>
+                  <p className="text-[11px] font-bold text-slate-600">3. Apague tudo o que estiver lá e cole o código abaixo.</p>
+                  <p className="text-[11px] font-bold text-slate-600">4. Clique no ícone de disquete (Salvar) e dê o nome de "KahuSync".</p>
+                  <p className="text-[11px] font-bold text-slate-600">5. Clique em "Implantar" {'>'} "Nova Implantação".</p>
+                  <p className="text-[11px] font-bold text-slate-600">6. Tipo: "App da Web" | Quem pode acessar: "Qualquer pessoa".</p>
+                  <p className="text-[11px] font-bold text-rose-600">7. IMPORTANTE: Após clicar em implantar, clique em "Autorizar acesso" e siga as telas do Google até o fim.</p>
+                </div>
+                
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                  <p className="text-[10px] text-amber-700 font-bold leading-tight">
+                    💡 Copie o código abaixo e cole no seu Apps Script:
+                  </p>
+                </div>
+
                 <pre className="bg-slate-50 p-4 rounded-xl text-[9px] font-mono text-slate-500 overflow-x-auto border border-slate-200">
 {`function doGet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("MASTER_SYNC");
   var data = { pets: [], checklists: [], groups: [], medications: [], medicationLogs: [], hotelStays: [] };
   
-  if (sheet) {
+  if (sheet && sheet.getLastRow() > 0) {
     var jsonStr = sheet.getRange(1, 1).getValue();
     if (jsonStr) {
-      data = JSON.parse(jsonStr);
+      try {
+        data = JSON.parse(jsonStr);
+      } catch(e) {
+        console.error("Erro ao ler JSON: " + e);
+      }
     }
   }
   
@@ -364,32 +384,37 @@ const Settings: React.FC<SettingsProps> = ({
 
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var data = JSON.parse(e.postData.contents);
+  var data;
+  try {
+    data = JSON.parse(e.postData.contents);
+  } catch(err) {
+    return ContentService.createTextOutput("Error: Invalid JSON").setMimeType(ContentService.MimeType.TEXT);
+  }
+  
   var type = data.type;
   var payload = data.data;
   
-  // Se for uma sincronização completa de estado
   if (type === 'MASTER_SYNC') {
     var sheet = ss.getSheetByName("MASTER_SYNC");
-    if (!sheet) {
-      sheet = ss.insertSheet("MASTER_SYNC");
-    }
+    if (!sheet) { sheet = ss.insertSheet("MASTER_SYNC"); }
     sheet.clear();
     sheet.getRange(1, 1).setValue(JSON.stringify(payload));
     return ContentService.createTextOutput("Sync Success");
   }
   
-  // Registros de Log Individuais (o que já funcionava)
+  // Log Individual (Tabelas dinâmicas)
   var sheetName = "Registros_" + type;
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
-    var headers = ["Data Registro", "Tipo"];
-    Object.keys(payload).forEach(function(key) { headers.push(key); });
-    sheet.appendRow(headers);
+    var firstHeaders = ["Data Registro", "Tipo"];
+    Object.keys(payload).forEach(function(key) { firstHeaders.push(key); });
+    sheet.appendRow(firstHeaders);
+    sheet.setFrozenRows(1);
   }
   
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  // Atualizar cabeçalhos se novos campos aparecerem
+  var headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
   var updatedHeaders = false;
   Object.keys(payload).forEach(function(key) {
     if (headers.indexOf(key) === -1) {
@@ -404,7 +429,8 @@ function doPost(e) {
   
   var row = [new Date(), type];
   for (var i = 2; i < headers.length; i++) {
-    row.push(payload[headers[i]] || "");
+    var val = payload[headers[i]];
+    row.push(val === undefined || val === null ? "" : val);
   }
   
   sheet.appendRow(row);
@@ -413,6 +439,7 @@ function doPost(e) {
                 </pre>
               </div>
             )}
+
           </div>
         </section>
 
