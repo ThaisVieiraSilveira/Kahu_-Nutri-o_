@@ -38,6 +38,12 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet }) =>
           <div>
             <h2 className="text-4xl font-black tracking-tighter text-sky-400">Cadastro Kahu</h2>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Gestão Central de Prontuários ({pets.length} ativos)</p>
+            <button 
+              onClick={() => navigate('/settings')}
+              className="mt-4 text-[10px] font-black text-rose-400 hover:text-rose-300 underline decoration-2 underline-offset-4 uppercase tracking-widest flex items-center gap-2"
+            >
+              <span>🆘 Sumiu seus pets? Clique aqui para recuperar da nuvem</span>
+            </button>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">

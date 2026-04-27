@@ -134,12 +134,12 @@ const App: React.FC = () => {
         // Auto-pull se tiver URL
         if (sheetsWebhookUrl) {
           try {
-            console.log("Auto-pull de inicialização...");
+            console.log("Tentando recuperar dados da nuvem...");
             const response = await fetch(sheetsWebhookUrl);
             if (response.ok) {
               const cloudData = await response.json();
               if (cloudData) {
-                if (cloudData.pets) {
+                if (cloudData.pets && cloudData.pets.length > 0) {
                   setPets(cloudData.pets);
                   localStorage.setItem('kahu_master_pets', JSON.stringify(cloudData.pets));
                 }
@@ -147,13 +147,31 @@ const App: React.FC = () => {
                   setChecklists(cloudData.checklists);
                   localStorage.setItem('kahu_checklists', JSON.stringify(cloudData.checklists));
                 }
+                if (cloudData.groups) {
+                  setGroups(cloudData.groups);
+                  localStorage.setItem('kahu_groups', JSON.stringify(cloudData.groups));
+                }
+                if (cloudData.medications) {
+                  setMedications(cloudData.medications);
+                  localStorage.setItem('kahu_medications', JSON.stringify(cloudData.medications));
+                }
+                if (cloudData.medicationLogs) {
+                  setMedicationLogs(cloudData.medicationLogs);
+                  localStorage.setItem('kahu_medication_logs', JSON.stringify(cloudData.medicationLogs));
+                }
+                if (cloudData.hotelStays) {
+                  setHotelStays(cloudData.hotelStays);
+                  localStorage.setItem('kahu_hotel_stays', JSON.stringify(cloudData.hotelStays));
+                }
+                
                 const now = new Date().toLocaleString('pt-BR');
                 localStorage.setItem('kahu_last_sync', now);
                 setLastSync(now);
+                console.log("Dados recuperados com sucesso!");
               }
             }
           } catch (autoErr) {
-            console.warn("Auto-pull inicial falhou (normal se a planilha for lenta ou sem CORS)");
+            console.warn("Auto-pull inicial falhou. Verifique se o Web App permitiu acesso 'Qualquer Pessoa'.");
           }
         }
       } catch (e) {
@@ -164,6 +182,15 @@ const App: React.FC = () => {
     };
     init();
   }, []);
+
+  // Debounced push to master sync
+  const debouncedPush = React.useRef<NodeJS.Timeout | null>(null);
+  const triggerMasterSync = () => {
+    if (debouncedPush.current) clearTimeout(debouncedPush.current);
+    debouncedPush.current = setTimeout(() => {
+      pushMasterSync().catch(console.error);
+    }, 5000); // 5 segundos de delay para acumular mudanças
+  };
 
   const saveChecklist = (entry: ChecklistEntry) => {
     const entryWithTimestamp = { ...entry, updatedAt: new Date().toISOString() };
@@ -179,6 +206,7 @@ const App: React.FC = () => {
       return updated;
     });
     syncToSheets('checklist', entryWithTimestamp);
+    triggerMasterSync();
   };
 
   const updatePetMaster = (updatedPet: Pet) => {
@@ -195,8 +223,8 @@ const App: React.FC = () => {
     // Auto-sync individual pet record
     syncToSheets('pet', updatedPet);
     
-    // Auto-sync full state after structural change (with a small delay)
-    setTimeout(() => pushMasterSync().catch(console.error), 2000);
+    // Auto-sync full state after structural change
+    triggerMasterSync();
     
     // Auto-sync with day groups (g_seg, g_ter, etc)
     setGroups(prev => {
@@ -233,6 +261,7 @@ const App: React.FC = () => {
   const saveGroups = (newGroups: PetGroup[]) => {
     setGroups(newGroups);
     localStorage.setItem('kahu_groups', JSON.stringify(newGroups));
+    triggerMasterSync();
   };
 
   const saveMedication = (med: MedicationType) => {
@@ -242,6 +271,7 @@ const App: React.FC = () => {
       localStorage.setItem('kahu_medications', JSON.stringify(updated));
       return updated;
     });
+    triggerMasterSync();
   };
 
   const deleteMedication = (id: string) => {
@@ -256,6 +286,7 @@ const App: React.FC = () => {
       localStorage.setItem('kahu_medication_logs', JSON.stringify(updated));
       return updated;
     });
+    triggerMasterSync();
   };
 
   const saveMedicationLog = (log: MedicationLog) => {
@@ -268,6 +299,7 @@ const App: React.FC = () => {
       return updated;
     });
     syncToSheets('medication_log', log);
+    triggerMasterSync();
   };
 
   const saveHotelStay = (stay: HotelStay) => {
@@ -278,6 +310,7 @@ const App: React.FC = () => {
       return updated;
     });
     syncToSheets('hotel_stay', stay);
+    triggerMasterSync();
   };
 
   const saveSheetsUrl = (url: string) => {

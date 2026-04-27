@@ -270,6 +270,21 @@ const Settings: React.FC<SettingsProps> = ({
       </div>
 
       <div className="bg-white rounded-[45px] p-8 border border-slate-100 shadow-xl space-y-8">
+        {/* Alerta de Recuperação de Dados */}
+        <section className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[35px] space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🆘</span>
+            <h4 className="text-rose-900 font-black uppercase text-sm">Sumiu seus dados?</h4>
+          </div>
+          <p className="text-rose-700 text-xs font-bold leading-tight">
+            Se você trocou de celular ou limpou o histórico e seus pets sumiram, siga isto:
+          </p>
+          <ol className="text-rose-600 text-[10px] font-bold list-decimal list-inside space-y-1">
+            <li>Insira a URL da sua planilha no campo abaixo.</li>
+            <li>Role a tela e clique em "BAIXAR DADOS" na seção indigo.</li>
+          </ol>
+        </section>
+
         <section className="space-y-4">
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sincronização entre Dispositivos</h3>
           <div className="bg-indigo-50 p-6 rounded-[35px] border border-indigo-100 space-y-4">
@@ -385,7 +400,7 @@ const Settings: React.FC<SettingsProps> = ({
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ type: 'MASTER_SYNC', data: allData })
                       });
-                      alert('✅ SINCRONIZAÇÃO COMPLETA ENVIADA!\n\nVerifique sua planilha agora. Se a aba "MASTER_DATA" aparecer com seus dados, está tudo pronto!');
+                      alert('✅ SINCRONIZAÇÃO COMPLETA ENVIADA!\n\nVerifique sua planilha agora. Se a aba "MASTER_SYNC" aparecer com seus dados, está tudo pronto!');
                     } catch (e: any) {
                       alert('Erro ao sincronizar: ' + e.message);
                     }

@@ -298,49 +298,34 @@ const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {!sheetsWebhookUrl && (
-        <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-3xl flex items-center gap-4 animate-bounce">
-          <span className="text-3xl">⚠️</span>
+        <div className="bg-amber-50 border-2 border-amber-200 p-6 rounded-[35px] flex items-center gap-5 shadow-lg animate-in slide-in-from-top-4">
+          <span className="text-4xl">⚠️</span>
           <div>
-            <p className="text-amber-900 font-black text-xs uppercase tracking-widest">Sincronização Desativada</p>
-            <p className="text-amber-700 text-[10px] font-bold">Configure a URL da planilha nos Ajustes para salvar entre PC e Celular.</p>
+            <p className="text-amber-900 font-black text-xs uppercase tracking-widest leading-none mb-1 text-left">Sincronização Desativada</p>
+            <p className="text-amber-700 text-[10px] font-bold leading-tight text-left">Configure a URL nos Ajustes para salvar seus dados com segurança no Google Sheets.</p>
           </div>
+          <button 
+            onClick={() => navigate('/settings')}
+            className="ml-auto bg-amber-200 text-amber-900 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-300 transition-all"
+          >
+            CONFIGURAR
+          </button>
         </div>
       )}
 
-      {/* MESSAGE STATION */}
-      {pendingMessages.length > 0 && (
-        <div className="bg-emerald-900 rounded-[40px] p-8 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-black text-white tracking-tighter">Central de Mensagens</h3>
-                <p className="text-emerald-300 text-[10px] font-black uppercase tracking-widest">Aguardando envio: {pendingMessages.length} tutores</p>
-              </div>
-              <span className="text-4xl animate-pulse">📱</span>
-            </div>
-
-            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-              {pendingMessages.map(({ pet, entry }) => (
-                <div key={pet.id} className="min-w-[280px] bg-white/10 border border-white/10 rounded-[30px] p-5 backdrop-blur-md flex flex-col justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-xl">🐶</div>
-                    <div>
-                      <p className="text-white font-black text-sm leading-tight">{pet.pet_nome}</p>
-                      <p className="text-emerald-300/60 font-bold text-[9px] uppercase tracking-widest">{entry.comeu}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => handleSendWhatsApp(pet, entry)}
-                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-lg active:scale-95"
-                  >
-                    ENVIAR AGORA
-                  </button>
-                </div>
-              ))}
-            </div>
-            <p className="text-[9px] font-bold text-emerald-400/50 italic mt-2">* Clique em enviar para abrir o WhatsApp de cada tutor sequencialmente.</p>
+      {pets.length <= 161 && (
+        <div className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[35px] flex items-center gap-5 shadow-lg animate-in slide-in-from-bottom-4">
+          <span className="text-4xl">🆘</span>
+          <div className="text-left">
+            <p className="text-rose-900 font-black text-xs uppercase tracking-widest leading-none mb-1">Seus pets sumiram?</p>
+            <p className="text-rose-700 text-[10px] font-bold leading-tight">Se você já tinha cadastrado pets e eles não aparecem, tente baixar os dados da nuvem.</p>
           </div>
+          <button 
+            onClick={() => navigate('/settings')}
+            className="ml-auto bg-rose-200 text-rose-900 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-300 transition-all"
+          >
+            RECUPERAR
+          </button>
         </div>
       )}
 
