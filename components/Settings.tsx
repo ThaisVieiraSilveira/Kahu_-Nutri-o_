@@ -344,15 +344,14 @@ const Settings: React.FC<SettingsProps> = ({
 
             {showScript && (
               <div className="bg-white p-6 rounded-[25px] border border-emerald-100 space-y-4 animate-in slide-in-from-top-2">
-                <div className="space-y-2">
-                  <p className="text-[11px] font-black text-slate-800">PASSO A PASSO:</p>
-                  <p className="text-[11px] font-bold text-slate-600">1. Crie uma nova Planilha no Google.</p>
-                  <p className="text-[11px] font-bold text-slate-600">2. Vá em Extensões {'>'} Apps Script.</p>
-                  <p className="text-[11px] font-bold text-slate-600">3. Apague tudo o que estiver lá e cole o código abaixo.</p>
-                  <p className="text-[11px] font-bold text-slate-600">4. Clique no ícone de disquete (Salvar) e dê o nome de "KahuSync".</p>
-                  <p className="text-[11px] font-bold text-slate-600">5. Clique em "Implantar" {'>'} "Nova Implantação".</p>
-                  <p className="text-[11px] font-bold text-slate-600">6. Tipo: "App da Web" | Quem pode acessar: "Qualquer pessoa".</p>
-                  <p className="text-[11px] font-bold text-rose-600">7. IMPORTANTE: Após clicar em implantar, clique em "Autorizar acesso" e siga as telas do Google até o fim.</p>
+                <div className="space-y-3">
+                  <p className="text-[12px] font-black text-slate-800">COMO CONECTAR (Siga cada passo):</p>
+                  <p className="text-[11px] font-bold text-slate-600">1. Vá no Google Sheets {'>'} Extensões {'>'} Apps Script.</p>
+                  <p className="text-[11px] font-bold text-slate-600">2. Apague tudo e cole o código abaixo.</p>
+                  <p className="text-[11px] font-bold text-slate-600">3. Clique em "Implantar" (botão azul) {'>'} "Nova Implantação".</p>
+                  <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", selecione <span className="text-rose-600 font-extrabold uppercase underline">Qualquer Pessoa</span>.</p>
+                  <p className="text-[11px] font-bold text-rose-600">5. Clique em Implantar. Se pedir para autorizar, clique em "Avançado" e "Acessar" (mesmo que diga não seguro).</p>
+                  <p className="text-[11px] font-bold text-emerald-600">6. Copie a URL gerada e cole no campo acima.</p>
                 </div>
                 
                 <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
@@ -364,53 +363,38 @@ const Settings: React.FC<SettingsProps> = ({
                 <pre className="bg-slate-50 p-4 rounded-xl text-[9px] font-mono text-slate-500 overflow-x-auto border border-slate-200">
 {`function doGet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("MASTER_SYNC");
+  var sheet = ss.getSheetByName("MASTER_SYNC") || ss.insertSheet("MASTER_SYNC");
   var data = { pets: [], checklists: [], groups: [], medications: [], medicationLogs: [], hotelStays: [] };
   
-  if (sheet && sheet.getLastRow() > 0) {
+  if (sheet.getLastRow() > 0) {
     var jsonStr = sheet.getRange(1, 1).getValue();
     if (jsonStr) {
-      try {
-        data = JSON.parse(jsonStr);
-      } catch(e) {
-        console.error("Erro ao ler JSON: " + e);
-      }
+      try { data = JSON.parse(jsonStr); } catch(e) {}
     }
   }
   
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var data;
-  try {
-    data = JSON.parse(e.postData.contents);
-  } catch(err) {
-    return ContentService.createTextOutput("Error: Invalid JSON").setMimeType(ContentService.MimeType.TEXT);
-  }
-  
-  var type = data.type;
-  var payload = data.data;
+  var body = JSON.parse(e.postData.contents);
+  var type = body.type;
+  var payload = body.data;
   
   if (type === 'MASTER_SYNC') {
-    var sheet = ss.getSheetByName("MASTER_SYNC");
-    if (!sheet) { sheet = ss.insertSheet("MASTER_SYNC"); }
-    sheet.clear();
-    sheet.getRange(1, 1).setValue(JSON.stringify(payload));
+    var sheet = ss.getSheetByName("MASTER_SYNC") || ss.insertSheet("MASTER_SYNC");
+    sheet.clear().getRange(1, 1).setValue(JSON.stringify(payload));
     return ContentService.createTextOutput("Sync Success");
   }
   
-  // Log Individual (Tabelas dinâmicas)
   var sheetName = "Registros_" + type;
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    var firstHeaders = ["Data Registro", "Tipo"];
-    Object.keys(payload).forEach(function(key) { firstHeaders.push(key); });
-    sheet.appendRow(firstHeaders);
-    sheet.setFrozenRows(1);
+  var sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
+  
+  if (sheet.getLastRow() == 0) {
+    var headers = ["Data", "Tipo"];
+    Object.keys(payload).forEach(function(k) { headers.push(k); });
+    sheet.appendRow(headers).setFrozenRows(1);
   }
   
   // Atualizar cabeçalhos se novos campos aparecerem
