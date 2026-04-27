@@ -12,20 +12,40 @@ interface SettingsProps {
   onSaveSheetsUrl: (url: string) => void;
   onPushSync: () => Promise<boolean>;
   onPullSync: () => Promise<boolean>;
+  zApiConfig: {
+    instanceId: string;
+    token: string;
+    clientToken: string;
+  };
+  onSaveZApi: (instanceId: string, token: string, clientToken: string) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
   pets, checklists, medications, medicationLogs, hotelStays, sheetsUrl, onSaveSheetsUrl,
-  onPushSync, onPullSync
+  onPushSync, onPullSync, zApiConfig, onSaveZApi
 }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [localSheetsUrl, setLocalSheetsUrl] = useState(sheetsUrl);
+  const [localZApi, setLocalZApi] = useState(zApiConfig);
   const [showScript, setShowScript] = useState(false);
   const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
+
+  React.useEffect(() => {
+    setLocalSheetsUrl(sheetsUrl);
+  }, [sheetsUrl]);
+
+  React.useEffect(() => {
+    setLocalZApi(zApiConfig);
+  }, [zApiConfig]);
 
   const handleSaveUrl = () => {
     onSaveSheetsUrl(localSheetsUrl);
     alert('URL do Google Sheets salva com sucesso! O sistema agora sincronizará em tempo real.');
+  };
+
+  const handleSaveZApi = () => {
+    onSaveZApi(localZApi.instanceId, localZApi.token, localZApi.clientToken);
+    alert('Configurações da Z-API salvas com sucesso!');
   };
 
   const handleReset = () => {
@@ -393,6 +413,128 @@ function doPost(e) {
                 </pre>
               </div>
             )}
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">WhatsApp Automático (Z-API)</h3>
+          <div className="bg-indigo-900 p-8 rounded-[40px] shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+            <div className="relative z-10 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-2xl">🤖</div>
+                <div>
+                  <h4 className="text-white font-black text-lg tracking-tight leading-none">Configurar Automação</h4>
+                  <p className="text-indigo-300 text-[10px] font-black uppercase tracking-widest mt-1">Conecte sua conta Z-API</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Instance ID</label>
+                    <input 
+                      type="text" 
+                      value={localZApi.instanceId}
+                      onChange={(e) => {
+                        let val = e.target.value.trim();
+                        // Se colarem a URL inteira: https://api.z-api.io/instances/ID/token/TOKEN
+                        if (val.includes('/instances/')) {
+                          const parts = val.split('/instances/')[1].split('/');
+                          val = parts[0];
+                          if (parts[2] && !localZApi.token) {
+                            setLocalZApi(prev => ({ ...prev, instanceId: val, token: parts[2] }));
+                            return;
+                          }
+                        }
+                        setLocalZApi({ ...localZApi, instanceId: val });
+                      }}
+                      placeholder="Ex: 3C..."
+                      className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Token</label>
+                    <input 
+                      type="text" 
+                      value={localZApi.token}
+                      onChange={(e) => {
+                        let val = e.target.value.trim();
+                        if (val.includes('/token/')) {
+                          const parts = val.split('/token/');
+                          val = parts[parts.length - 1].split('/')[0];
+                        }
+                        setLocalZApi({ ...localZApi, token: val });
+                      }}
+                      placeholder="Identificador da Instância"
+                      className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Client Token (Security)</label>
+                    <input 
+                      type="password" 
+                      value={localZApi.clientToken}
+                      onChange={(e) => setLocalZApi({ ...localZApi, clientToken: e.target.value })}
+                      placeholder="Seu Token de Segurança"
+                      className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
+                    />
+                  </div>
+                </div>
+                <button 
+                  onClick={handleSaveZApi}
+                  className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-xl active:scale-95"
+                >
+                  SALVAR CHAVES Z-API
+                </button>
+              </div>
+
+              <button 
+                onClick={async () => {
+                  if (!localZApi.instanceId || !localZApi.token) {
+                    alert('Por favor, preencha o Instance ID e o Token primeiro.');
+                    return;
+                  }
+                  try {
+                    const headers: Record<string, string> = {
+                      'Content-Type': 'application/json'
+                    };
+                    if (localZApi.clientToken) {
+                      headers['Client-Token'] = localZApi.clientToken;
+                    }
+                    
+                    const response = await fetch(`https://api.z-api.io/instances/${localZApi.instanceId}/token/${localZApi.token}/send-text`, {
+                      method: 'POST',
+                      headers: headers,
+                      body: JSON.stringify({
+                        phone: '5511999999999', // Número de teste genérico
+                        message: 'Teste de conexão Kahu Care + Z-API 🐾'
+                      })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                      alert('Conexão bem-sucedida! O comando foi enviado para a Z-API. Verifique se o WhatsApp está conectado no painel da Z-API.');
+                    } else {
+                      alert(`Erro na Z-API: ${data.message || response.statusText}\n\nVerifique se o Instance ID e Token estão corretos e se sua instância está conectada.`);
+                    }
+                  } catch (e: any) {
+                    console.error("Erro no teste da Z-API:", e);
+                    alert(`Erro de conexão: ${e.message}. Verifique se a URL está correta ou se há algum bloqueio de rede.`);
+                  }
+                }}
+                className="w-full py-2 bg-white/10 border border-white/20 text-indigo-200 font-bold rounded-xl hover:bg-white/20 transition-all text-[10px] uppercase tracking-widest"
+              >
+                🧪 Testar Conexão Z-API
+              </button>
+
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <p className="text-[10px] text-indigo-200 font-bold leading-relaxed italic">
+                  * Com as chaves configuradas, as mensagens serão enviadas automaticamente no fundo, sem abrir o navegador.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 

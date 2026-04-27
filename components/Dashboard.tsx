@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Pet, ChecklistEntry, PetGroup } from '../types';
 import { getStatusColor, getStatusEmoji, calculateStatus } from '../utils/status';
 import { isPetOnDay } from '../utils/date';
+import { getGeneratedMessage } from '../utils/messages';
 
 interface DashboardProps {
   pets: Pet[];
@@ -16,9 +17,17 @@ interface DashboardProps {
   lastSync?: string;
   isSyncing?: boolean;
   sheetsWebhookUrl?: string;
+  zApiConfig?: {
+    instanceId: string;
+    token: string;
+    clientToken: string;
+  };
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdatePet, onPullSync, onPushSync, onSaveChecklist, lastSync, isSyncing, sheetsWebhookUrl }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  pets, checklists, groups, onUpdatePet, onPullSync, onPushSync, 
+  onSaveChecklist, lastSync, isSyncing, sheetsWebhookUrl, zApiConfig 
+}) => {
   const navigate = useNavigate();
   
   const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
@@ -158,7 +167,9 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
       teveEstimuloHidratacao: existing?.teveEstimuloHidratacao || 'Não',
       comportamento: existing?.comportamento || '-',
       alertas: existing?.alertas || '-',
-      observacoes: (quickEntries[`obs_${petId}`] as string) || existing?.observacoes || '',
+      observacoes: Object.prototype.hasOwnProperty.call(quickEntries, `obs_${petId}`) 
+        ? (quickEntries[`obs_${petId}`] as string) 
+        : (existing?.observacoes || ''),
       escoreFecal: existing?.escoreFecal || 3,
       quantoOferecido: existing?.quantoOferecido || '-',
       quantoSobrou: existing?.quantoSobrou || '-',
@@ -176,14 +187,159 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
     }
   };
 
+  const handleSendWhatsApp = async (pet: Pet, entry: ChecklistEntry) => {
+    const text = getGeneratedMessage(pet, entry);
+    const phone = pet.telefone?.replace(/\D/g, '') || '';
+    
+    // Marcar como enviado no local e sincronizar
+    onSaveChecklist({ ...entry, lastMessageSentAt: new Date().toISOString() });
+
+    if (!phone) {
+      navigator.clipboard.writeText(text);
+      alert('Tutor sem telefone. Mensagem copiada!');
+      return;
+    }
+
+    // Se Z-API estiver configurada, enviar via API (fundo)
+    if (zApiConfig?.instanceId && zApiConfig?.token) {
+      try {
+        const response = await fetch(`https://api.z-api.io/instances/${zApiConfig.instanceId}/token/${zApiConfig.token}/send-text`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Client-Token': zApiConfig.clientToken || ''
+          },
+          body: JSON.stringify({
+            phone: `55${phone}`,
+            message: text
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao enviar via Z-API');
+        }
+
+        // Sucesso silencioso ou um feedback simples
+        console.log(`Mensagem enviada via Z-API para ${pet.pet_nome}`);
+      } catch (e) {
+        console.error("Erro Z-API:", e);
+        // Fallback para o método tradicional se a API falhar
+        const url = `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+      }
+    } else {
+      // Método tradicional (abrir aba)
+      const url = `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
+  };
+
+  const pendingMessages = useMemo(() => {
+    return filteredPets.map(pet => {
+      const entry = checklists.find(c => c.petId === pet.id && c.date === searchDate);
+      if (entry && entry.comeu && !entry.lastMessageSentAt) {
+        return { pet, entry };
+      }
+      return null;
+    }).filter(Boolean) as { pet: Pet; entry: ChecklistEntry }[];
+  }, [filteredPets, checklists, searchDate]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {/* MESSAGE STATION */}
+      {pendingMessages.length > 0 && (
+        <div className="bg-emerald-900 rounded-[40px] p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-black text-white tracking-tighter">Mensagens Pendentes</h3>
+                <div className="flex items-center gap-3">
+                  <p className="text-emerald-300 text-[10px] font-black uppercase tracking-widest">Aguardando envio: {pendingMessages.length} tutores</p>
+                  <button 
+                    onClick={() => {
+                      if (confirm('Marcar todas as mensagens de hoje como enviadas? (Não abrirá o WhatsApp)')) {
+                        pendingMessages.forEach(({ entry }) => {
+                          onSaveChecklist({ ...entry, lastMessageSentAt: new Date().toISOString() });
+                        });
+                      }
+                    }}
+                    className="text-[9px] font-black text-emerald-500 bg-white/10 px-2 py-0.5 rounded-lg hover:bg-white/20 transition-all uppercase"
+                  >
+                    Marcar todos como enviados
+                  </button>
+                </div>
+              </div>
+              <span className="text-4xl animate-pulse">📱</span>
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+              {pendingMessages.map(({ pet, entry }) => (
+                <div key={pet.id} className="min-w-[280px] bg-white/10 border border-white/10 rounded-[30px] p-5 backdrop-blur-md flex flex-col justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-xl">🐶</div>
+                    <div>
+                      <p className="text-white font-black text-sm leading-tight">{pet.pet_nome}</p>
+                      <p className="text-emerald-300/60 font-bold text-[9px] uppercase tracking-widest">{entry.comeu}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleSendWhatsApp(pet, entry)}
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-lg active:scale-95"
+                  >
+                    ENVIAR PARA TUTOR
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-[9px] font-bold text-emerald-400/50 italic mt-2">* Clique em enviar para abrir o WhatsApp de cada tutor em sequência.</p>
+          </div>
+        </div>
+      )}
+
       {!sheetsWebhookUrl && (
         <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-3xl flex items-center gap-4 animate-bounce">
           <span className="text-3xl">⚠️</span>
           <div>
             <p className="text-amber-900 font-black text-xs uppercase tracking-widest">Sincronização Desativada</p>
             <p className="text-amber-700 text-[10px] font-bold">Configure a URL da planilha nos Ajustes para salvar entre PC e Celular.</p>
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGE STATION */}
+      {pendingMessages.length > 0 && (
+        <div className="bg-emerald-900 rounded-[40px] p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-black text-white tracking-tighter">Central de Mensagens</h3>
+                <p className="text-emerald-300 text-[10px] font-black uppercase tracking-widest">Aguardando envio: {pendingMessages.length} tutores</p>
+              </div>
+              <span className="text-4xl animate-pulse">📱</span>
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+              {pendingMessages.map(({ pet, entry }) => (
+                <div key={pet.id} className="min-w-[280px] bg-white/10 border border-white/10 rounded-[30px] p-5 backdrop-blur-md flex flex-col justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center text-xl">🐶</div>
+                    <div>
+                      <p className="text-white font-black text-sm leading-tight">{pet.pet_nome}</p>
+                      <p className="text-emerald-300/60 font-bold text-[9px] uppercase tracking-widest">{entry.comeu}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleSendWhatsApp(pet, entry)}
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-lg active:scale-95"
+                  >
+                    ENVIAR AGORA
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="text-[9px] font-bold text-emerald-400/50 italic mt-2">* Clique em enviar para abrir o WhatsApp de cada tutor sequencialmente.</p>
           </div>
         </div>
       )}
@@ -422,9 +578,9 @@ const Dashboard: React.FC<DashboardProps> = ({ pets, checklists, groups, onUpdat
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { label: 'Comeu tudo', internal: 'Comeu tudo', emoji: '😋' },
-                      { label: 'Comeu pouco', internal: 'Comeu pouco', emoji: '🤏' },
                       { label: 'Comeu metade', internal: 'Comeu metade', emoji: '😐' },
-                      { label: 'Menos da metade', internal: 'Comeu menos da metade', emoji: '😕' }
+                      { label: 'Menos da metade', internal: 'Comeu menos da metade', emoji: '😕' },
+                      { label: 'Não comeu', internal: 'Não comeu', emoji: '🔴' }
                     ].map(opt => (
                       <button
                         key={opt.label}

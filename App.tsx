@@ -27,6 +27,9 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sheetsWebhookUrl, setSheetsWebhookUrl] = useState<string>(localStorage.getItem('kahu_sheets_url') || '');
+  const [zApiInstanceId, setZApiInstanceId] = useState<string>(localStorage.getItem('kahu_zapi_instance') || '');
+  const [zApiToken, setZApiToken] = useState<string>(localStorage.getItem('kahu_zapi_token') || '');
+  const [zApiClientToken, setZApiClientToken] = useState<string>(localStorage.getItem('kahu_zapi_client_token') || '');
   const [isSyncing, setIsSyncing] = useState(false);
 
   const syncToSheets = async (type: string, data: any) => {
@@ -282,6 +285,15 @@ const App: React.FC = () => {
     localStorage.setItem('kahu_sheets_url', url);
   };
 
+  const saveZApiConfig = (instanceId: string, token: string, clientToken: string) => {
+    setZApiInstanceId(instanceId);
+    setZApiToken(token);
+    setZApiClientToken(clientToken);
+    localStorage.setItem('kahu_zapi_instance', instanceId);
+    localStorage.setItem('kahu_zapi_token', token);
+    localStorage.setItem('kahu_zapi_client_token', clientToken);
+  };
+
   const [lastSync, setLastSync] = useState<string>(localStorage.getItem('kahu_last_sync') || '');
 
   const saveToLocal = (key: string, data: any) => {
@@ -439,6 +451,11 @@ const App: React.FC = () => {
               lastSync={lastSync}
               isSyncing={isSyncing}
               sheetsWebhookUrl={sheetsWebhookUrl}
+              zApiConfig={{
+                instanceId: zApiInstanceId,
+                token: zApiToken,
+                clientToken: zApiClientToken
+              }}
             />
           } />
           <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />
@@ -447,7 +464,19 @@ const App: React.FC = () => {
           <Route path="/grupos" element={<Groups pets={pets} groups={groups} onSaveGroups={saveGroups} />} />
           <Route path="/medicacao" element={<Medication pets={pets} medications={medications} medicationLogs={medicationLogs} onSaveMedication={saveMedication} onDeleteMedication={deleteMedication} onSaveLog={saveMedicationLog} />} />
           <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} onSaveMedication={saveMedication} />} />
-          <Route path="/pet/:petId" element={<PetChecklist pets={pets} checklists={checklists} onSave={saveChecklist} onUpdatePet={updatePetMaster} />} />
+          <Route path="/pet/:petId" element={
+            <PetChecklist 
+              pets={pets} 
+              checklists={checklists} 
+              onSave={saveChecklist} 
+              onUpdatePet={updatePetMaster} 
+              zApiConfig={{
+                instanceId: zApiInstanceId,
+                token: zApiToken,
+                clientToken: zApiClientToken
+              }}
+            />
+          } />
           <Route path="/relatorios" element={<Reports pets={pets} checklists={checklists} />} />
           <Route path="/settings" element={
             <Settings 
@@ -460,6 +489,12 @@ const App: React.FC = () => {
               onSaveSheetsUrl={saveSheetsUrl}
               onPushSync={pushMasterSync}
               onPullSync={pullMasterSync}
+              zApiConfig={{
+                instanceId: zApiInstanceId,
+                token: zApiToken,
+                clientToken: zApiClientToken
+              }}
+              onSaveZApi={saveZApiConfig}
             />
           } />
         </Routes>

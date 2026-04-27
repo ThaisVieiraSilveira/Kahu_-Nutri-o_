@@ -4,15 +4,23 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Pet, ChecklistEntry, FECAL_SCORE_LABELS } from '../types';
 import { calculateStatus } from '../utils/status';
 import { isPetOnDay } from '../utils/date';
+import { getGeneratedMessage } from '../utils/messages';
 
 interface PetChecklistProps {
   pets: Pet[];
   onSave: (entry: ChecklistEntry) => void;
   checklists: ChecklistEntry[];
   onUpdatePet: (pet: Pet) => void;
+  zApiConfig?: {
+    instanceId: string;
+    token: string;
+    clientToken: string;
+  };
 }
 
-const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, onUpdatePet }) => {
+const PetChecklist: React.FC<PetChecklistProps> = ({ 
+  pets, onSave, checklists, onUpdatePet, zApiConfig 
+}) => {
   const { petId } = useParams();
   const [searchParams] = useSearchParams();
   
@@ -49,22 +57,11 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
   const history = useMemo(() => checklists.filter(c => c.petId === petId).sort((a,b) => b.date.localeCompare(a.date)), [checklists, petId]);
   const existingEntry = checklists.find(c => c.petId === petId && c.date === date);
 
-  const [form, setForm] = useState<Partial<ChecklistEntry>>({
-    comeu: undefined,
-    agua: 'Pouca água',
-    quantoOferecido: '-',
-    quantoSobrou: '-',
-    teveEstimuloHidratacao: 'Não',
-    comportamento: '-',
-    alertas: '-',
-    observacoes: '',
-    escoreFecal: 3,
-    ...existingEntry
-  });
+  const [form, setForm] = useState<Partial<ChecklistEntry>>({});
 
   useEffect(() => {
     if (existingEntry) {
-      setForm(existingEntry);
+      setForm({ ...existingEntry });
     } else {
       setForm({
         comeu: undefined,
@@ -78,38 +75,43 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
         escoreFecal: 3,
       });
     }
-  }, [existingEntry, petId]);
+  }, [existingEntry, petId, date]);
 
-  const handleWhatsAppNotify = (entry: ChecklistEntry) => {
+  const handleSave = (mode: 'exit' | 'next' | 'stay', entryUpdate?: Partial<ChecklistEntry>) => {
     if (!pet) return;
-    const petName = pet.pet_nome || 'amigão';
-    const tutorName = pet.tutor_nome ? `${pet.tutor_nome}, ` : '';
     
-    const foodStatus = entry.comeu;
+    // Garantir que estamos usando os dados mais recentes para o status
+    const updatedForm = { ...form, ...(entryUpdate || {}) };
+    const entry = { 
+      ...updatedForm,
+      petId: pet.id, 
+      date, 
+      status: calculateStatus(updatedForm) 
+    } as ChecklistEntry;
     
-    let messageParts = [`Olá ${tutorName}! Passando para dar notícias do ${petName} hoje.`];
+    onSave(entry);
 
-    if (foodStatus) {
-      const nutritionNote = (foodStatus === 'Não comeu' || foodStatus === 'Comeu metade' || foodStatus === 'Comeu menos da metade') 
-        ? "\n\nCaso continue apresentando falta de apetite, uma consulta com uma nutricionista veterinária pode ser uma ótima opção para ajustar a dieta de forma personalizada."
-        : "";
-      
-      if (foodStatus === 'Comeu tudo') {
-        messageParts.push(`Sobre a alimentação: ele comeu super bem, limpou o potinho! 😋`);
-      } else {
-        messageParts.push(`Sobre a alimentação: ele ${foodStatus.toLowerCase()}.${nutritionNote}`);
-      }
+    if (mode === 'next' && nextPet) {
+      navigate(`/pet/${nextPet.id}?date=${date}`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (mode === 'exit') {
+      navigate('/');
+    } else if (mode === 'stay' && !entryUpdate) {
+      alert('Progresso salvo com sucesso! 💾');
     }
+  };
 
-    if (entry.observacoes) {
-      messageParts.push(`\nObservação: ${entry.observacoes}`);
-    }
+  const getGeneratedMessageLocal = (entry: Partial<ChecklistEntry>) => {
+    if (!pet) return '';
+    return getGeneratedMessage(pet, entry);
+  };
 
-    if (entry.status === 'OK' && foodStatus === 'Comeu tudo') {
-      messageParts = [`Olá ${tutorName}! Passando para dizer que o ${petName} está tendo um dia maravilhoso hoje! Comeu tudo e está muito feliz. ${entry.observacoes ? `\n\nObservação: ${entry.observacoes}` : ''}`];
-    }
-
-    const text = messageParts.join('\n\n');
+  const handleWhatsAppNotify = async (entry: ChecklistEntry) => {
+    if (!pet) return;
+    const text = getGeneratedMessageLocal(entry);
+    
+    // Atualizar que a mensagem foi enviada
+    onSave({ ...entry, lastMessageSentAt: new Date().toISOString() });
     
     // Clean phone number
     const phone = pet.telefone?.replace(/\D/g, '') || '';
@@ -120,28 +122,30 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
       return;
     }
 
-    const url = `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
+    if (zApiConfig?.instanceId && zApiConfig?.token) {
+      try {
+        const response = await fetch(`https://api.z-api.io/instances/${zApiConfig.instanceId}/token/${zApiConfig.token}/send-text`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Client-Token': zApiConfig.clientToken || ''
+          },
+          body: JSON.stringify({
+            phone: `55${phone}`,
+            message: text
+          })
+        });
 
-  const handleSave = (mode: 'exit' | 'next' | 'stay') => {
-    if (!pet) return;
-    const entry = { 
-      ...form, 
-      petId: pet.id, 
-      date, 
-      status: calculateStatus(form) 
-    } as ChecklistEntry;
-    
-    onSave(entry);
-
-    if (mode === 'next' && nextPet) {
-      navigate(`/pet/${nextPet.id}?date=${date}`);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (mode === 'exit') {
-      navigate('/');
-    } else if (mode === 'stay') {
-      alert('Progresso salvo com sucesso! 💾');
+        if (!response.ok) throw new Error('Z-API error');
+        alert('Mensagem enviada automaticamente via WhatsApp! ✅');
+      } catch (e) {
+        console.error("Z-API error:", e);
+        const url = `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+      }
+    } else {
+      const url = `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
     }
   };
 
@@ -186,25 +190,22 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
               </div>
               
               <div className="bg-slate-50 p-6 rounded-[30px] border-2 border-slate-100">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Prévia da Mensagem:</p>
-                <div className="whitespace-pre-wrap text-sm font-bold text-slate-700 leading-relaxed italic mb-6">
-                  {(() => {
-                    const petName = pet.pet_nome || 'amigão';
-                    const tutorName = pet.tutor_nome ? `${pet.tutor_nome}, ` : '';
-                    const foodStatus = form.comeu;
-                    let messageParts = [`Olá ${tutorName}! Passando para dar notícias do ${petName} hoje.`];
-                    if (foodStatus) {
-                      if (foodStatus === 'Comeu tudo') {
-                        messageParts.push(`Sobre a alimentação: ele comeu super bem, limpou o potinho! 😋`);
-                      } else {
-                        messageParts.push(`Sobre a alimentação: ele ${foodStatus.toLowerCase()}.`);
+                <div className="flex justify-between items-center mb-4">
+                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Prévia da Mensagem:</p>
+                  <button 
+                    onClick={() => {
+                      if (confirm('Deseja limpar as observações de hoje?')) {
+                        setForm({...form, observacoes: ''});
+                        handleSave('stay', { observacoes: '' });
                       }
-                    }
-                    if (form.observacoes) {
-                      messageParts.push(`\nObservação: ${form.observacoes}`);
-                    }
-                    return messageParts.join('\n\n');
-                  })()}
+                    }}
+                    className="text-[9px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors"
+                  >
+                    🗑️ Limpar Obs
+                  </button>
+                </div>
+                <div className="whitespace-pre-wrap text-sm font-bold text-slate-700 leading-relaxed italic mb-6">
+                  {getGeneratedMessageLocal(form)}
                 </div>
 
                 <div className="space-y-2 border-t border-slate-200 pt-4">
@@ -215,7 +216,7 @@ const PetChecklist: React.FC<PetChecklistProps> = ({ pets, onSave, checklists, o
                       const newObs = e.target.value;
                       setForm({...form, observacoes: newObs});
                       // Auto-save when editing in messages tab
-                      onSave({ ...form, petId: pet.id, date, status: calculateStatus({...form, observacoes: newObs}) } as ChecklistEntry);
+                      handleSave('stay', { observacoes: newObs });
                     }}
                     className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-600 outline-none focus:border-emerald-300 shadow-inner min-h-[80px]"
                     placeholder="Algo mais para contar ao tutor?"
