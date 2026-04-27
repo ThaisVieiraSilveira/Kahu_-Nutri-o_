@@ -39,8 +39,37 @@ const Settings: React.FC<SettingsProps> = ({
   }, [zApiConfig]);
 
   const handleSaveUrl = () => {
+    if (!localSheetsUrl.startsWith('https://script.google.com/')) {
+      alert('⚠️ URL INVÁLIDA!\n\nA URL deve começar com https://script.google.com/...\nCertifique-se de copiar o link em "App da Web" -> "URL".');
+      return;
+    }
     onSaveSheetsUrl(localSheetsUrl);
-    alert('URL do Google Sheets salva com sucesso! O sistema agora sincronizará em tempo real.');
+    alert('✅ URL SALVA COM SUCESSO!\n\nAgora o sistema tentará enviar uma mensagem de teste.');
+    handleTestSheets();
+  };
+
+  const handleTestSheets = async () => {
+    if (!localSheetsUrl) return;
+    
+    try {
+      // Usamos no-cors pois o Google Apps Script não suporta CORS direto facilmente
+      await fetch(localSheetsUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          type: 'TESTE_CONEXAO', 
+          data: { 
+            mensagem: 'Kahu Care está conectado!', 
+            status: 'Sucesso',
+            aviso: 'Se você vê esta linha, a integração está 100%!' 
+          } 
+        })
+      });
+      alert('🚀 TESTE ENVIADO!\n\nVerifique em sua planilha se apareceu uma aba chamada "Log_TESTE_CONEXAO".');
+    } catch (e: any) {
+      alert(`❌ ERRO NA CONEXÃO: ${e.message}\n\nVerifique se você autorizou o acesso no Apps Script.`);
+    }
   };
 
   const handleSaveZApi = () => {
@@ -308,27 +337,7 @@ const Settings: React.FC<SettingsProps> = ({
                 </button>
               </div>
               <button 
-                onClick={async () => {
-                  if (!localSheetsUrl) {
-                    alert('Por favor, insira uma URL primeiro.');
-                    return;
-                  }
-                  if (!localSheetsUrl.startsWith('https://script.google.com/')) {
-                    alert('URL inválida! Certifique-se de copiar o link do Web App do Google Apps Script.');
-                    return;
-                  }
-                  try {
-                    await fetch(localSheetsUrl, {
-                      method: 'POST',
-                      mode: 'no-cors',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ type: 'TESTE', data: { mensagem: 'Conexão bem-sucedida!', pet_nome: 'PET_TESTE' } })
-                    });
-                    alert('Comando de teste enviado! Como o Google Sheets não confirma o recebimento instantâneo (Cross-Origin), verifique agora mesmo em sua planilha se uma nova aba "Registros_TESTE" apareceu. Se apareceu, está funcionando!');
-                  } catch (e: any) {
-                    alert(`Erro ao conectar: ${e.message}. Verifique sua conexão e se a URL está correta.`);
-                  }
-                }}
+                onClick={handleTestSheets}
                 className="w-full py-2 bg-white border-2 border-emerald-100 text-emerald-600 font-bold rounded-xl hover:bg-emerald-50 transition-all text-[10px] uppercase tracking-widest"
               >
                 🧪 Testar Conexão
@@ -349,10 +358,42 @@ const Settings: React.FC<SettingsProps> = ({
                   <p className="text-[11px] font-bold text-slate-600">1. Vá no Google Sheets {'>'} Extensões {'>'} Apps Script.</p>
                   <p className="text-[11px] font-bold text-slate-600">2. Apague tudo e cole o código abaixo.</p>
                   <p className="text-[11px] font-bold text-slate-600">3. Clique em "Implantar" (botão azul) {'>'} "Nova Implantação".</p>
-                  <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", selecione <span className="text-rose-600 font-extrabold uppercase underline">Qualquer Pessoa</span>.</p>
+                  <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", selecione <span className="text-rose-600 font-extrabold uppercase underline">Qualquer Pessoa</span> (Isso é obrigatório!).</p>
                   <p className="text-[11px] font-bold text-rose-600">5. Clique em Implantar. Se pedir para autorizar, clique em "Avançado" e "Acessar" (mesmo que diga não seguro).</p>
                   <p className="text-[11px] font-bold text-emerald-600">6. Copie a URL gerada e cole no campo acima.</p>
                 </div>
+                
+                <button 
+                  onClick={async () => {
+                    if (!sheetsUrl) {
+                      alert('Salve a URL primeiro!');
+                      return;
+                    }
+                    try {
+                      const allData = {
+                        pets: JSON.parse(localStorage.getItem('kahu_pets') || '[]'),
+                        checklists: JSON.parse(localStorage.getItem('kahu_checklists') || '[]'),
+                        groups: JSON.parse(localStorage.getItem('kahu_groups') || '[]'),
+                        medications: JSON.parse(localStorage.getItem('kahu_medications') || '[]'),
+                        medicationLogs: JSON.parse(localStorage.getItem('kahu_medication_logs') || '[]'),
+                        hotelStays: JSON.parse(localStorage.getItem('kahu_hotel_stays') || '[]')
+                      };
+                      
+                      await fetch(sheetsUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'MASTER_SYNC', data: allData })
+                      });
+                      alert('✅ SINCRONIZAÇÃO COMPLETA ENVIADA!\n\nVerifique sua planilha agora. Se a aba "MASTER_DATA" aparecer com seus dados, está tudo pronto!');
+                    } catch (e: any) {
+                      alert('Erro ao sincronizar: ' + e.message);
+                    }
+                  }}
+                  className="w-full py-4 bg-emerald-600 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-xl space-y-1"
+                >
+                  <span>🔄 Sincronizar Tudo Agora</span>
+                </button>
                 
                 <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
                   <p className="text-[10px] text-amber-700 font-bold leading-tight">
