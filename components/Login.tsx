@@ -58,8 +58,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </button>
         </form>
 
-        <div className="mt-10 pt-6 border-t border-slate-50 text-center">
-          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+        <div className="mt-10 pt-6 border-t border-slate-100 text-center space-y-4">
+          <a
+            href="/domo.html"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-[#F0FAF6] hover:bg-[#E2F4ED] text-[#1D9E75] font-black text-xs uppercase tracking-wider rounded-2xl border border-[#1D9E75]/20 transition-all shadow-sm w-full justify-center"
+          >
+            <span>💻 Acessar Admin DOMO — Sistema Pet</span>
+            <span class="text-xs">→</span>
+          </a>
+          
+          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest pt-2">
             © {new Date().getFullYear()} Kahu Care • Gestão Veterinária
           </p>
         </div>
