@@ -6,12 +6,13 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
+  const [email, setEmail] = useState('thaisvieiravet@hotmail.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'Nutrição55@') {
+    if (email.trim().toLowerCase() === 'thaisvieiravet@hotmail.com' && password === 'Batata5812') {
       onLogin();
     } else {
       setError(true);
@@ -29,7 +30,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Acesso Restrito</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-4">E-mail de Acesso</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="exemplo@hotmail.com"
+              className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 focus:border-emerald-300 focus:bg-white rounded-3xl outline-none font-bold text-slate-700 transition-all text-center text-sm"
+              required
+            />
+          </div>
+
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-4">Senha de Acesso</label>
             <input
@@ -41,12 +54,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 error ? 'border-rose-300 bg-rose-50 animate-shake' : 'border-slate-100 focus:border-emerald-300 focus:bg-white'
               }`}
               autoFocus
+              required
             />
           </div>
 
           {error && (
             <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest text-center animate-pulse">
-              Senha incorreta. Tente novamente.
+              E-mail ou senha incorretos. Tente novamente.
             </p>
           )}
 
