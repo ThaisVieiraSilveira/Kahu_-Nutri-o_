@@ -60,7 +60,7 @@ const Settings: React.FC<SettingsProps> = ({
         body: JSON.stringify({ 
           type: 'TESTE_CONEXAO', 
           data: { 
-            mensagem: 'Kahu Care está conectado!', 
+            mensagem: 'DOMO está conectado!', 
             status: 'Sucesso',
             aviso: 'Se você vê esta linha, a integração está 100%!' 
           } 
@@ -575,7 +575,7 @@ function doPost(e) {
                       headers: headers,
                       body: JSON.stringify({
                         phone: '5511999999999', // Número de teste genérico
-                        message: 'Teste de conexão Kahu Care + Z-API 🐾'
+                        message: 'Teste de conexão DOMO + Z-API 🐾'
                       })
                     });
                     
@@ -689,7 +689,23 @@ function doPost(e) {
         </section>
 
         <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sobre o Kahu Care</h3>
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Personalização de Marca</h3>
+          <div className="bg-[#FAF8F5] p-6 rounded-[35px] border border-orange-100 flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="text-sm font-black text-orange-950">Ajustes White-Label</h4>
+              <p className="text-[11px] font-semibold text-slate-500">Personalize o nome da sua creche, logotipo PNG e a cor principal do sistema.</p>
+            </div>
+            <a 
+              href="#/ajustes" 
+              className="px-5 py-3 bg-white hover:bg-orange-50 text-orange-600 font-extrabold text-[10px] uppercase tracking-wider rounded-2xl border border-orange-100 shadow-sm transition-all shrink-0"
+            >
+              Configurar 🏷️
+            </a>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sobre o DOMO</h3>
           <div className="bg-slate-50 p-6 rounded-[35px] border border-slate-100">
             <p className="text-xs font-bold text-slate-500">Versão: 1.0.2-Stable</p>
             <p className="text-xs font-bold text-slate-500 mt-2 italic">Desenvolvido para gestão humanizada e profissional de creches caninas.</p>

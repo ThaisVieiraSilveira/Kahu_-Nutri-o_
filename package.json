@@ -1,5 +1,5 @@
 {
-  "name": "kahu-care",
+  "name": "domo-pet",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,6 +13,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "firebase": "^12.14.0",
     "google-auth-library": "^10.5.0",
     "googleapis": "^171.4.0",
     "motion": "^12.38.0",

@@ -1,20 +1,9 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# DOMO — Sistema Pet
 
-# Run and deploy your AI Studio app
+Sistema de gestão moderno e completo para creches e hotéis pet.
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/b44668b5-8aaf-4f51-acd4-aaa87cb2bc18
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Recursos
+- **Gestão De Unidades / Creches**: Controle total das unidades registradas sob o plano SaaS.
+- **Checklists Interativos**: Controle diário de alimentação, água, fezes e observações diretamente pelos monitores de pátio.
+- **Monitoramento de Saúde**: Histórico detalhado de medicações ministradas, horários e observações.
+- **Visualizador e Gerador de Relatórios**: Exportação simplificada para o Google Sheets e painéis claros para os médicos veterinários e gestores.

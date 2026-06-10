@@ -332,7 +332,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-4xl font-black text-emerald-900 mb-1 tracking-tighter">Matilha Kahu</h2>
+          <h2 className="text-4xl font-black text-emerald-900 mb-1 tracking-tighter">Matilha DOMO</h2>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <span className="bg-emerald-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">CADASTROS: {pets.length}</span>

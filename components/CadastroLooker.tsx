@@ -36,7 +36,7 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet }) =>
         <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <h2 className="text-4xl font-black tracking-tighter text-sky-400">Cadastro Kahu</h2>
+            <h2 className="text-4xl font-black tracking-tighter text-sky-400">Cadastro DOMO</h2>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Gestão Central de Prontuários ({pets.length} ativos)</p>
             <button 
               onClick={() => navigate('/settings')}
@@ -176,7 +176,7 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet }) =>
       </div>
 
       <div className="flex justify-between items-center px-8 text-slate-400 font-black text-[9px] uppercase tracking-[0.2em] py-4">
-        <span>Kahu Care Database Management</span>
+        <span>DOMO Database Management</span>
         <span>Filtered: {filteredPets.length} of {pets.length} pets</span>
       </div>
     </div>

@@ -26,7 +26,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       <div className="w-full max-w-md bg-white rounded-[40px] shadow-2xl p-10 border border-slate-100 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center mb-8">
           <div className="text-6xl mb-4 animate-bounce">🐶</div>
-          <h1 className="text-3xl font-black text-emerald-800 tracking-tighter">Kahu Care</h1>
+          <h1 className="text-3xl font-black text-emerald-800 tracking-tighter">DOMO</h1>
           <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Acesso Restrito</p>
         </div>
 
@@ -82,7 +82,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </a>
           
           <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest pt-2">
-            © {new Date().getFullYear()} Kahu Care • Gestão Veterinária
+            © {new Date().getFullYear()} DOMO • Gestão Veterinária
           </p>
         </div>
       </div>

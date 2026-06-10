@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { fetchPets } from './services/api';
 import { isPetOnDay } from './utils/date';
 import Layout from './components/Layout';
@@ -14,7 +14,9 @@ import Cadastro from './components/Cadastro';
 import Medication from './components/Medication';
 import Hotel from './components/Hotel';
 import Settings from './components/Settings';
-import Login from './components/Login';
+import Login from './src/pages/Login';
+import Ajustes from './src/pages/Ajustes';
+import { useAuth } from './src/hooks/useAuth';
 import { Pet, ChecklistEntry, PetGroup, Medication as MedicationType, MedicationLog, HotelStay } from './types';
 
 const App: React.FC = () => {
@@ -25,7 +27,6 @@ const App: React.FC = () => {
   const [medicationLogs, setMedicationLogs] = useState<MedicationLog[]>([]);
   const [hotelStays, setHotelStays] = useState<HotelStay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sheetsWebhookUrl, setSheetsWebhookUrl] = useState<string>(localStorage.getItem('kahu_sheets_url') || '');
   const [zApiInstanceId, setZApiInstanceId] = useState<string>(localStorage.getItem('kahu_zapi_instance') || '');
   const [zApiToken, setZApiToken] = useState<string>(localStorage.getItem('kahu_zapi_token') || '');
@@ -59,11 +60,6 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const authStatus = localStorage.getItem('kahu_authenticated');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-    }
-
     const init = async () => {
       try {
         const basePets = await fetchPets();
@@ -175,7 +171,7 @@ const App: React.FC = () => {
           }
         }
       } catch (e) {
-        console.error("Erro ao carregar Kahu Care:", e);
+        console.error("Erro ao carregar DOMO:", e);
       } finally {
         setLoading(false);
       }
@@ -449,89 +445,108 @@ const App: React.FC = () => {
     });
   };
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    localStorage.setItem('kahu_authenticated', 'true');
+  const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user, loading: authLoading } = useAuth();
+    
+    if (authLoading) {
+      return (
+        <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center">
+          <div className="text-7xl animate-bounce mb-6">🐾</div>
+          <h1 className="text-3xl font-black text-emerald-800 tracking-tighter">DOMO</h1>
+          <p className="text-emerald-600 font-bold animate-pulse mt-2">Sincronizando a matilha DOMO...</p>
+        </div>
+      );
+    }
+    
+    if (!user) {
+      return <Navigate to="/login" replace />;
+    }
+    
+    return <>{children}</>;
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center">
         <div className="text-7xl animate-bounce mb-6">🐾</div>
-        <h1 className="text-3xl font-black text-emerald-800 tracking-tighter">Kahu Care</h1>
-        <p className="text-emerald-600 font-bold animate-pulse mt-2">Sincronizando a matilha...</p>
+        <h1 className="text-3xl font-black text-emerald-800 tracking-tighter">DOMO</h1>
+        <p className="text-emerald-600 font-bold animate-pulse mt-2">Carregando a matilha DOMO...</p>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
-  }
-
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={
-            <Dashboard 
-              pets={pets} 
-              checklists={checklists} 
-              groups={groups} 
-              onUpdatePet={updatePetMaster}
-              onPullSync={pullMasterSync}
-              onPushSync={pushMasterSync}
-              onSaveChecklist={saveChecklist}
-              lastSync={lastSync}
-              isSyncing={isSyncing}
-              sheetsWebhookUrl={sheetsWebhookUrl}
-              zApiConfig={{
-                instanceId: zApiInstanceId,
-                token: zApiToken,
-                clientToken: zApiClientToken
-              }}
-            />
-          } />
-          <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />
-          <Route path="/checklist_looker" element={<ChecklistLooker pets={pets} checklists={checklists} />} />
-          <Route path="/cadastro/:petId" element={<Cadastro pets={pets} onSave={updatePetMaster} />} />
-          <Route path="/grupos" element={<Groups pets={pets} groups={groups} onSaveGroups={saveGroups} />} />
-          <Route path="/medicacao" element={<Medication pets={pets} medications={medications} medicationLogs={medicationLogs} onSaveMedication={saveMedication} onDeleteMedication={deleteMedication} onSaveLog={saveMedicationLog} />} />
-          <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} onSaveMedication={saveMedication} />} />
-          <Route path="/pet/:petId" element={
-            <PetChecklist 
-              pets={pets} 
-              checklists={checklists} 
-              onSave={saveChecklist} 
-              onUpdatePet={updatePetMaster} 
-              zApiConfig={{
-                instanceId: zApiInstanceId,
-                token: zApiToken,
-                clientToken: zApiClientToken
-              }}
-            />
-          } />
-          <Route path="/relatorios" element={<Reports pets={pets} checklists={checklists} />} />
-          <Route path="/settings" element={
-            <Settings 
-              pets={pets} 
-              checklists={checklists} 
-              medications={medications} 
-              medicationLogs={medicationLogs} 
-              hotelStays={hotelStays} 
-              sheetsUrl={sheetsWebhookUrl} 
-              onSaveSheetsUrl={saveSheetsUrl}
-              onPushSync={pushMasterSync}
-              onPullSync={pullMasterSync}
-              zApiConfig={{
-                instanceId: zApiInstanceId,
-                token: zApiToken,
-                clientToken: zApiClientToken
-              }}
-              onSaveZApi={saveZApiConfig}
-            />
-          } />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/*" element={
+          <ProtectedRoute>
+            <Layout>
+              <Routes>
+                <Route path="/" element={
+                  <Dashboard 
+                    pets={pets} 
+                    checklists={checklists} 
+                    groups={groups} 
+                    onUpdatePet={updatePetMaster}
+                    onPullSync={pullMasterSync}
+                    onPushSync={pushMasterSync}
+                    onSaveChecklist={saveChecklist}
+                    lastSync={lastSync}
+                    isSyncing={isSyncing}
+                    sheetsWebhookUrl={sheetsWebhookUrl}
+                    zApiConfig={{
+                      instanceId: zApiInstanceId,
+                      token: zApiToken,
+                      clientToken: zApiClientToken
+                    }}
+                  />
+                } />
+                <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />
+                <Route path="/checklist_looker" element={<ChecklistLooker pets={pets} checklists={checklists} />} />
+                <Route path="/cadastro/:petId" element={<Cadastro pets={pets} onSave={updatePetMaster} />} />
+                <Route path="/grupos" element={<Groups pets={pets} groups={groups} onSaveGroups={saveGroups} />} />
+                <Route path="/medicacao" element={<Medication pets={pets} medications={medications} medicationLogs={medicationLogs} onSaveMedication={saveMedication} onDeleteMedication={deleteMedication} onSaveLog={saveMedicationLog} />} />
+                <Route path="/hotel" element={<Hotel pets={pets} hotelStays={hotelStays} medications={medications} medicationLogs={medicationLogs} onSaveStay={saveHotelStay} onDeleteStay={deleteHotelStay} onSaveMedLog={saveMedicationLog} onSaveMedication={saveMedication} />} />
+                <Route path="/pet/:petId" element={
+                  <PetChecklist 
+                    pets={pets} 
+                    checklists={checklists} 
+                    onSave={saveChecklist} 
+                    onUpdatePet={updatePetMaster} 
+                    zApiConfig={{
+                      instanceId: zApiInstanceId,
+                      token: zApiToken,
+                      clientToken: zApiClientToken
+                    }}
+                  />
+                } />
+                <Route path="/relatorios" element={<Reports pets={pets} checklists={checklists} />} />
+                <Route path="/settings" element={
+                  <Settings 
+                    pets={pets} 
+                    checklists={checklists} 
+                    medications={medications} 
+                    medicationLogs={medicationLogs} 
+                    hotelStays={hotelStays} 
+                    sheetsUrl={sheetsWebhookUrl} 
+                    onSaveSheetsUrl={saveSheetsUrl}
+                    onPushSync={pushMasterSync}
+                    onPullSync={pullMasterSync}
+                    zApiConfig={{
+                      instanceId: zApiInstanceId,
+                      token: zApiToken,
+                      clientToken: zApiClientToken
+                    }}
+                    onSaveZApi={saveZApiConfig}
+                  />
+                } />
+                <Route path="/ajustes" element={<Ajustes />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } />
+      </Routes>
     </Router>
   );
 };

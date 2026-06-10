@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "Tenant": {
+      "title": "Tenant Configuration",
+      "description": "White-label settings for DOMO creches",
+      "type": "object",
+      "properties": {
+        "tenant_id": {
+          "type": "string",
+          "description": "Unique identifier of the tenant"
+        },
+        "nome": {
+          "type": "string",
+          "description": "Daycare name"
+        },
+        "cor_primaria": {
+          "type": "string",
+          "description": "Hex value of the primary color"
+        },
+        "logo_url": {
+          "type": "string",
+          "description": "URL of the uploaded PNG logo"
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL slug generated from the name"
+        },
+        "atualizado_em": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO timestamp of the latest update"
+        }
+      },
+      "required": ["tenant_id", "nome", "cor_primaria", "slug", "atualizado_em"]
+    }
+  },
+  "firestore": {
+    "/tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Collection storing white-label brand definitions"
+    }
+  }
+}

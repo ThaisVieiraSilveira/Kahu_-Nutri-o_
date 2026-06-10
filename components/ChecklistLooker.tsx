@@ -128,7 +128,7 @@ const ChecklistLooker: React.FC<ChecklistLookerProps> = ({ pets, checklists }) =
       </div>
 
       <div className="flex justify-between items-center px-8 text-slate-400 font-black text-[9px] uppercase tracking-[0.2em] py-4">
-        <span>Kahu Care Intelligence System</span>
+        <span>DOMO Intelligence System</span>
         <span>Audit Filtered by: {selectedDate}</span>
       </div>
     </div>
