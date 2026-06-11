@@ -7,6 +7,20 @@ import { auth } from '../src/firebase';
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
 
+  const [domoNome, setDomoNome] = React.useState(localStorage.getItem('domo_nome') || 'DOMO');
+  const [domoCor, setDomoCor] = React.useState(localStorage.getItem('domo_cor') || '#085041');
+  const [domoLogo, setDomoLogo] = React.useState(localStorage.getItem('domo_logo') || '');
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      setDomoNome(localStorage.getItem('domo_nome') || 'DOMO');
+      setDomoCor(localStorage.getItem('domo_cor') || '#085041');
+      setDomoLogo(localStorage.getItem('domo_logo') || '');
+    };
+    window.addEventListener('domoBrandingChanged', handleUpdate);
+    return () => window.removeEventListener('domoBrandingChanged', handleUpdate);
+  }, []);
+
   const navItems = [
     { path: '/', label: 'Painel', icon: '🐾' },
     { path: '/cadastro', label: 'Cadastro', icon: '📝' },
@@ -28,27 +42,47 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="bg-emerald-50 border-b border-emerald-100 py-4 px-6 sticky top-0 z-40">
+      <header 
+        className="py-4 px-6 sticky top-0 z-40 transition-all border-b"
+        style={{ 
+          backgroundColor: domoCor + '0A', // Soft background with 4% opacity
+          borderColor: domoCor + '1A' // Border with 10% opacity
+        }}
+      >
         <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <Link to="/" className="flex items-center gap-2 group">
-            <span className="text-3xl group-hover:rotate-12 transition-transform">🐶</span>
-            <h1 className="text-2xl font-bold text-emerald-800 tracking-tight">DOMO</h1>
+          <Link to="/" className="flex items-center gap-2.5 group">
+            {domoLogo ? (
+              <img src={domoLogo} alt="Logo" className="w-9 h-9 object-contain rounded-lg" />
+            ) : (
+              <span className="text-3xl group-hover:rotate-12 transition-transform">🐶</span>
+            )}
+            <h1 
+              className="text-2xl font-black tracking-tight transition-colors"
+              style={{ color: domoCor }}
+            >
+              {domoNome}
+            </h1>
           </Link>
           
           <div className="flex items-center gap-2 md:gap-4">
             <div className="hidden md:flex gap-6">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-1 font-semibold transition-colors ${
-                    location.pathname === item.path ? 'text-emerald-600 underline decoration-2 underline-offset-4' : 'text-slate-500 hover:text-emerald-500'
-                  }`}
-                >
-                  <span>{item.icon}</span>
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className="flex items-center gap-1 font-extrabold text-[11px] uppercase tracking-wider transition-colors py-2 px-1"
+                    style={{ 
+                      color: isActive ? domoCor : '#64748b',
+                      borderBottom: isActive ? `2.5px solid ${domoCor}` : '2.5px solid transparent'
+                    }}
+                  >
+                    <span>{item.icon}</span>
+                    {item.label}
+                  </Link>
+                );
+              })}
             </div>
 
             <Link 
@@ -86,18 +120,23 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </footer>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2 flex justify-around items-center z-50">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`flex flex-col items-center p-2 rounded-xl transition-all ${
-              location.pathname === item.path ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400'
-            }`}
-          >
-            <span className="text-2xl">{item.icon}</span>
-            <span className="text-xs font-bold">{item.label}</span>
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className="flex flex-col items-center p-2 rounded-xl transition-all"
+              style={{
+                backgroundColor: isActive ? domoCor + '12' : 'transparent',
+                color: isActive ? domoCor : '#94a3b8'
+              }}
+            >
+              <span className="text-2xl">{item.icon}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

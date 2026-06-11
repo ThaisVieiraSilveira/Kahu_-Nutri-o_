@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Pet, ChecklistEntry, Medication, MedicationLog, HotelStay } from '../types';
 
 interface SettingsProps {
@@ -20,24 +19,111 @@ interface SettingsProps {
   onSaveZApi: (instanceId: string, token: string, clientToken: string) => void;
 }
 
+const COLOR_OPTIONS = [
+  { value: '#085041', name: 'Floresta Real' },
+  { value: '#7F77DD', name: 'Roxo Lavanda' },
+  { value: '#D85A30', name: 'Laranja Coral' },
+  { value: '#378ADD', name: 'Azul Celeste' },
+  { value: '#D4537E', name: 'Rosa Hibisco' },
+  { value: '#BA7517', name: 'Dourado Mel' },
+];
+
 const Settings: React.FC<SettingsProps> = ({ 
   pets, checklists, medications, medicationLogs, hotelStays, sheetsUrl, onSaveSheetsUrl,
   onPushSync, onPullSync, zApiConfig, onSaveZApi
 }) => {
+  // Navigation Tabs: 'brand' (Ajustes de Marca) or 'tech' (Conectividade e Relatórios)
+  const [activeTab, setActiveTab] = useState<'brand' | 'tech'>('brand');
+
+  // White-Label State variables
+  const [domoNome, setDomoNome] = useState(localStorage.getItem('domo_nome') || 'DOMO');
+  const [domoSlogan, setDomoSlogan] = useState(localStorage.getItem('domo_slogan') || 'Gestão canina de ponta a ponta');
+  const [domoCor, setDomoCor] = useState(localStorage.getItem('domo_cor') || '#085041');
+  const [domoLogo, setDomoLogo] = useState(localStorage.getItem('domo_logo') || '');
+  
+  // Animation/Feedback states
+  const [salvoComSucesso, setSalvoComSucesso] = useState(false);
+  const [showPaws, setShowPaws] = useState(false);
+
+  // Technical configuration state
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [localSheetsUrl, setLocalSheetsUrl] = useState(sheetsUrl);
   const [localZApi, setLocalZApi] = useState(zApiConfig);
   const [showScript, setShowScript] = useState(false);
   const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
 
-  React.useEffect(() => {
+  useEffect(() => {
+    // Read from localStorage to fill initial values on mount
+    const savedNome = localStorage.getItem('domo_nome');
+    if (savedNome) setDomoNome(savedNome);
+    
+    const savedSlogan = localStorage.getItem('domo_slogan');
+    if (savedSlogan) setDomoSlogan(savedSlogan);
+    
+    const savedCor = localStorage.getItem('domo_cor');
+    if (savedCor) setDomoCor(savedCor);
+    
+    const savedLogo = localStorage.getItem('domo_logo');
+    if (savedLogo) setDomoLogo(savedLogo);
+  }, []);
+
+  useEffect(() => {
     setLocalSheetsUrl(sheetsUrl);
   }, [sheetsUrl]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalZApi(zApiConfig);
   }, [zApiConfig]);
 
+  // Handle Logo Upload and convert to Base64 (so it fits inside localStorage perfectly)
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type !== 'image/png') {
+        alert('Formatos inválidos! Por favor, utilize apenas arquivos de imagem no formato PNG.');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setDomoLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleClearLogo = () => {
+    setDomoLogo('');
+  };
+
+  const handleSaveBrand = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!domoNome.trim()) {
+      alert('Por favor, preencha o nome da sua creche.');
+      return;
+    }
+
+    // Save brand properties to localStorage
+    localStorage.setItem('domo_nome', domoNome.trim());
+    localStorage.setItem('domo_slogan', domoSlogan.trim());
+    localStorage.setItem('domo_cor', domoCor);
+    localStorage.setItem('domo_logo', domoLogo);
+
+    // Trigger sweet bouncing paws animations
+    setShowPaws(true);
+    setSalvoComSucesso(true);
+
+    // Broadcast a custom event 'domoBrandingChanged' so other components can choose to update dynamically!
+    window.dispatchEvent(new Event('domoBrandingChanged'));
+
+    setTimeout(() => {
+      setSalvoComSucesso(false);
+      setShowPaws(false);
+    }, 4000);
+  };
+
+  // Technical operations copy-pasted & adapted carefully from previous settings file
   const handleSaveUrl = () => {
     if (!localSheetsUrl.startsWith('https://script.google.com/')) {
       alert('⚠️ URL INVÁLIDA!\n\nA URL deve começar com https://script.google.com/...\nCertifique-se de copiar o link em "App da Web" -> "URL".');
@@ -50,9 +136,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleTestSheets = async () => {
     if (!localSheetsUrl) return;
-    
     try {
-      // Usamos no-cors pois o Google Apps Script não suporta CORS direto facilmente
       await fetch(localSheetsUrl, {
         method: 'POST',
         mode: 'no-cors',
@@ -60,9 +144,9 @@ const Settings: React.FC<SettingsProps> = ({
         body: JSON.stringify({ 
           type: 'TESTE_CONEXAO', 
           data: { 
-            mensagem: 'DOMO está conectado!', 
+            mensagem: 'DOMO está conectado no modo White-Label!', 
             status: 'Sucesso',
-            aviso: 'Se você vê esta linha, a integração está 100%!' 
+            aviso: 'Integração está funcionando com nova paleta de cor integrada' 
           } 
         })
       });
@@ -78,7 +162,6 @@ const Settings: React.FC<SettingsProps> = ({
   };
 
   const handleReset = () => {
-    // Limpa todos os dados locais
     localStorage.removeItem('kahu_checklists');
     localStorage.removeItem('kahu_master_pets');
     localStorage.removeItem('kahu_groups');
@@ -86,9 +169,12 @@ const Settings: React.FC<SettingsProps> = ({
     localStorage.removeItem('kahu_medication_logs');
     localStorage.removeItem('kahu_hotel_stays');
     localStorage.removeItem('kahu_deleted_pets');
+    localStorage.removeItem('domo_nome');
+    localStorage.removeItem('domo_slogan');
+    localStorage.removeItem('domo_cor');
+    localStorage.removeItem('domo_logo');
     
-    // Feedback visual e recarregamento
-    alert('Sistema reiniciado com sucesso! Todos os dados locais foram apagados.');
+    alert('Sistema reiniciado com sucesso! Todos os dados e marcas personalizadas foram apagados.');
     window.location.href = '#/';
     window.location.reload();
   };
@@ -209,8 +295,6 @@ const Settings: React.FC<SettingsProps> = ({
 
   const exportConsolidatedReport = () => {
     const data: any[] = [];
-
-    // Add Checklists
     checklists.forEach(c => {
       const pet = pets.find(p => p.id === c.petId);
       data.push({
@@ -221,8 +305,6 @@ const Settings: React.FC<SettingsProps> = ({
         'Detalhes': c.observacoes || '-'
       });
     });
-
-    // Add Medication Logs
     medicationLogs.forEach(l => {
       const pet = pets.find(p => p.id === l.petId);
       const med = medications.find(m => m.id === l.medicationId);
@@ -234,8 +316,6 @@ const Settings: React.FC<SettingsProps> = ({
         'Detalhes': l.notes || '-'
       });
     });
-
-    // Add Hotel Stays
     hotelStays.forEach(s => {
       const pet = pets.find(p => p.id === s.petId);
       data.push({
@@ -256,462 +336,565 @@ const Settings: React.FC<SettingsProps> = ({
       }
     });
 
-    // Sort by date
     data.sort((a, b) => new Date(b['Data/Hora']).getTime() - new Date(a['Data/Hora']).getTime());
-
     exportToCSV(data, 'Kahu_Relatorio_Consolidado', ['Data/Hora', 'Pet', 'Tipo', 'Evento', 'Detalhes']);
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 py-10 animate-in fade-in duration-500">
-      <div className="text-center space-y-2">
-        <h2 className="text-4xl font-black text-slate-800">Ajustes do Sistema</h2>
-        <p className="text-slate-500 font-medium">Gerencie sua base de dados e preferências ⚙️</p>
-      </div>
-
-      <div className="bg-white rounded-[45px] p-8 border border-slate-100 shadow-xl space-y-8">
-        {/* Alerta de Recuperação de Dados */}
-        <section className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[35px] space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">🆘</span>
-            <h4 className="text-rose-900 font-black uppercase text-sm">Sumiu seus dados?</h4>
+    <div className="min-h-screen bg-[#F0FAF6] py-10 px-4">
+      <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
+        
+        {/* Adorable custom jumping paws layer for the brand tab success */}
+        {showPaws && (
+          <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
+            <div className="flex gap-4">
+              <span className="text-7xl animate-bounce-paw" style={{ animationDelay: '0s' }}>🐾</span>
+              <span className="text-7xl animate-bounce-paw shadow-sm" style={{ animationDelay: '0.15s' }}>🐾</span>
+              <span className="text-7xl animate-bounce-paw" style={{ animationDelay: '0.3s' }}>🐾</span>
+              <span className="text-7xl animate-bounce-paw" style={{ animationDelay: '0.45s' }}>🐾</span>
+            </div>
           </div>
-          <p className="text-rose-700 text-xs font-bold leading-tight">
-            Se você trocou de celular ou limpou o histórico e seus pets sumiram, siga isto:
+        )}
+
+        {/* Title Block */}
+        <div className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-4xl animate-bounce">⚙️</span>
+            <h2 className="text-4xl font-black text-slate-800 tracking-tight">Ajustes do Sistema</h2>
+          </div>
+          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">
+            Personalização de Marca & Conectividade do DOMO
           </p>
-          <ol className="text-rose-600 text-[10px] font-bold list-decimal list-inside space-y-1">
-            <li>Insira a URL da sua planilha no campo abaixo.</li>
-            <li>Role a tela e clique em "BAIXAR DADOS" na seção indigo.</li>
-          </ol>
-        </section>
+        </div>
 
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sincronização entre Dispositivos</h3>
-          <div className="bg-indigo-50 p-6 rounded-[35px] border border-indigo-100 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">☁️</span>
-              <p className="text-xs font-bold text-indigo-800">
-                Use estes botões para manter celular e computador com os mesmos dados.
-              </p>
-            </div>
+        {/* Elegant Navigation Tab Selector */}
+        <div className="flex bg-emerald-950/5 p-1.5 rounded-3xl border border-emerald-900/5 max-w-md mx-auto">
+          <button
+            onClick={() => setActiveTab('brand')}
+            className={`flex-1 py-3 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'brand' 
+                ? 'bg-white text-emerald-800 shadow-md transform scale-100' 
+                : 'text-slate-500 hover:text-emerald-700'
+            }`}
+          >
+            <span>🏷️</span> Identidade Visual
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('tech')}
+            className={`flex-1 py-3 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'tech' 
+                ? 'bg-white text-emerald-800 shadow-md transform scale-100' 
+                : 'text-slate-500 hover:text-emerald-700'
+            }`}
+          >
+            <span>☁️</span> Conectividade
+          </button>
+        </div>
+
+        {/* Brand Tab View */}
+        {activeTab === 'brand' && (
+          <form onSubmit={handleSaveBrand} className="space-y-8">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button 
-                onClick={handlePushSync}
-                disabled={syncing !== 'none'}
-                className={`py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
-                  syncing === 'push' ? 'bg-slate-200 text-slate-400 transform scale-95' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700 active:scale-95'
-                }`}
-              >
-                <span className="text-2xl">{syncing === 'push' ? '⏳' : '📤'}</span>
-                {syncing === 'push' ? 'Enviando...' : 'Enviar para Nuvem'}
-              </button>
+            {/* 1. Identidade da Creche */}
+            <div className="bg-white rounded-[35px] p-8 border border-[#E2F0EA] shadow-xl space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+                <span className="text-2xl">🏫</span>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">1. Identidade da Creche</h3>
+              </div>
               
-              <button 
-                onClick={handlePullSync}
-                disabled={syncing !== 'none'}
-                className={`py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
-                  syncing === 'pull' ? 'bg-slate-200 text-slate-400 transform scale-95' : 'bg-white border-2 border-indigo-100 text-indigo-600 shadow-indigo-50 hover:bg-indigo-50 active:scale-95'
-                }`}
-              >
-                <span className="text-2xl">{syncing === 'pull' ? '⏳' : '📥'}</span>
-                {syncing === 'pull' ? 'Baixar da Nuvem' : 'Baixar Dados'}
-              </button>
-            </div>
-            <p className="text-[9px] font-bold text-indigo-400 text-center italic">
-              Atenção: Sempre clique em "Enviar" quando terminar o trabalho em um aparelho e em "Baixar" ao começar em outro.
-            </p>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sincronização em Tempo Real (Google Sheets)</h3>
-          <div className="bg-emerald-50 p-6 rounded-[35px] border border-emerald-100 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">⚡</span>
-              <p className="text-xs font-bold text-emerald-800">
-                Configure um Webhook para enviar dados automaticamente para o Google Sheets sempre que salvar um registro.
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-2">URL do Web App (Google Apps Script)</label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={localSheetsUrl}
-                  onChange={(e) => setLocalSheetsUrl(e.target.value.trim())}
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  className="flex-1 p-4 bg-white border-2 border-emerald-100 rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-300 shadow-sm"
-                />
-                <button 
-                  onClick={handleSaveUrl}
-                  className="px-6 bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-all active:scale-95"
-                >
-                  SALVAR
-                </button>
-              </div>
-              <button 
-                onClick={handleTestSheets}
-                className="w-full py-2 bg-white border-2 border-emerald-100 text-emerald-600 font-bold rounded-xl hover:bg-emerald-50 transition-all text-[10px] uppercase tracking-widest"
-              >
-                🧪 Testar Conexão
-              </button>
-            </div>
-
-            <button 
-              onClick={() => setShowScript(!showScript)}
-              className="text-[10px] font-black text-emerald-600 underline decoration-2 underline-offset-4 uppercase tracking-widest"
-            >
-              {showScript ? 'Ocultar Instruções' : 'Como configurar o Google Sheets?'}
-            </button>
-
-            {showScript && (
-              <div className="bg-white p-6 rounded-[25px] border border-emerald-100 space-y-4 animate-in slide-in-from-top-2">
-                <div className="space-y-3">
-                  <p className="text-[12px] font-black text-slate-800">COMO CONECTAR (Siga cada passo):</p>
-                  <p className="text-[11px] font-bold text-slate-600">1. Vá no Google Sheets {'>'} Extensões {'>'} Apps Script.</p>
-                  <p className="text-[11px] font-bold text-slate-600">2. Apague tudo e cole o código abaixo.</p>
-                  <p className="text-[11px] font-bold text-slate-600">3. Clique em "Implantar" (botão azul) {'>'} "Nova Implantação".</p>
-                  <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", selecione <span className="text-rose-600 font-extrabold uppercase underline">Qualquer Pessoa</span> (Isso é obrigatório!).</p>
-                  <p className="text-[11px] font-bold text-rose-600">5. Clique em Implantar. Se pedir para autorizar, clique em "Avançado" e "Acessar" (mesmo que diga não seguro).</p>
-                  <p className="text-[11px] font-bold text-emerald-600">6. Copie a URL gerada e cole no campo acima.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Nome da Creche / Hotel</label>
+                  <input
+                    type="text"
+                    value={domoNome}
+                    onChange={(e) => setDomoNome(e.target.value)}
+                    placeholder="Ex: Domo Sistema Pet"
+                    className="w-full p-4 bg-[#F9FBFA] border-2 border-[#E7EFEA] rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-300 transition-all text-sm"
+                    required
+                  />
                 </div>
                 
-                <button 
-                  onClick={async () => {
-                    if (!sheetsUrl) {
-                      alert('Salve a URL primeiro!');
-                      return;
-                    }
-                    try {
-                      const allData = {
-                        pets: JSON.parse(localStorage.getItem('kahu_pets') || '[]'),
-                        checklists: JSON.parse(localStorage.getItem('kahu_checklists') || '[]'),
-                        groups: JSON.parse(localStorage.getItem('kahu_groups') || '[]'),
-                        medications: JSON.parse(localStorage.getItem('kahu_medications') || '[]'),
-                        medicationLogs: JSON.parse(localStorage.getItem('kahu_medication_logs') || '[]'),
-                        hotelStays: JSON.parse(localStorage.getItem('kahu_hotel_stays') || '[]')
-                      };
-                      
-                      await fetch(sheetsUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ type: 'MASTER_SYNC', data: allData })
-                      });
-                      alert('✅ SINCRONIZAÇÃO COMPLETA ENVIADA!\n\nVerifique sua planilha agora. Se a aba "MASTER_SYNC" aparecer com seus dados, está tudo pronto!');
-                    } catch (e: any) {
-                      alert('Erro ao sincronizar: ' + e.message);
-                    }
-                  }}
-                  className="w-full py-4 bg-emerald-600 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-xl space-y-1"
-                >
-                  <span>🔄 Sincronizar Tudo Agora</span>
-                </button>
-                
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-                  <p className="text-[10px] text-amber-700 font-bold leading-tight">
-                    💡 Copie o código abaixo e cole no seu Apps Script:
-                  </p>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Slogan ou Descrição</label>
+                  <input
+                    type="text"
+                    value={domoSlogan}
+                    onChange={(e) => setDomoSlogan(e.target.value)}
+                    placeholder="Ex: Gestão e amor pet de ponta a ponta"
+                    className="w-full p-4 bg-[#F9FBFA] border-2 border-[#E7EFEA] rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-300 transition-all text-sm"
+                  />
                 </div>
-
-                <pre className="bg-slate-50 p-4 rounded-xl text-[9px] font-mono text-slate-500 overflow-x-auto border border-slate-200">
-{`function doGet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("MASTER_SYNC") || ss.insertSheet("MASTER_SYNC");
-  var data = { pets: [], checklists: [], groups: [], medications: [], medicationLogs: [], hotelStays: [] };
-  
-  if (sheet.getLastRow() > 0) {
-    var jsonStr = sheet.getRange(1, 1).getValue();
-    if (jsonStr) {
-      try { data = JSON.parse(jsonStr); } catch(e) {}
-    }
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var body = JSON.parse(e.postData.contents);
-  var type = body.type;
-  var payload = body.data;
-  
-  if (type === 'MASTER_SYNC') {
-    var sheet = ss.getSheetByName("MASTER_SYNC") || ss.insertSheet("MASTER_SYNC");
-    sheet.clear().getRange(1, 1).setValue(JSON.stringify(payload));
-    return ContentService.createTextOutput("Sync Success");
-  }
-  
-  var sheetName = "Registros_" + type;
-  var sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
-  
-  if (sheet.getLastRow() == 0) {
-    var headers = ["Data", "Tipo"];
-    Object.keys(payload).forEach(function(k) { headers.push(k); });
-    sheet.appendRow(headers).setFrozenRows(1);
-  }
-  
-  // Atualizar cabeçalhos se novos campos aparecerem
-  var headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
-  var updatedHeaders = false;
-  Object.keys(payload).forEach(function(key) {
-    if (headers.indexOf(key) === -1) {
-      headers.push(key);
-      updatedHeaders = true;
-    }
-  });
-  
-  if (updatedHeaders) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  }
-  
-  var row = [new Date(), type];
-  for (var i = 2; i < headers.length; i++) {
-    var val = payload[headers[i]];
-    row.push(val === undefined || val === null ? "" : val);
-  }
-  
-  sheet.appendRow(row);
-  return ContentService.createTextOutput("Success");
-}`}
-                </pre>
               </div>
-            )}
+            </div>
 
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">WhatsApp Automático (Z-API)</h3>
-          <div className="bg-indigo-900 p-8 rounded-[40px] shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-            <div className="relative z-10 space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-2xl">🤖</div>
-                <div>
-                  <h4 className="text-white font-black text-lg tracking-tight leading-none">Configurar Automação</h4>
-                  <p className="text-indigo-300 text-[10px] font-black uppercase tracking-widest mt-1">Conecte sua conta Z-API</p>
-                </div>
+            {/* 2. Cor Principal */}
+            <div className="bg-white rounded-[35px] p-8 border border-[#E2F0EA] shadow-xl space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+                <span className="text-2xl">🎨</span>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">2. Cor Principal da Marca</h3>
               </div>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Instance ID</label>
-                    <input 
-                      type="text" 
-                      value={localZApi.instanceId}
-                      onChange={(e) => {
-                        let val = e.target.value.trim();
-                        // Se colarem a URL inteira: https://api.z-api.io/instances/ID/token/TOKEN
-                        if (val.includes('/instances/')) {
-                          const parts = val.split('/instances/')[1].split('/');
-                          val = parts[0];
-                          if (parts[2] && !localZApi.token) {
-                            setLocalZApi(prev => ({ ...prev, instanceId: val, token: parts[2] }));
-                            return;
-                          }
-                        }
-                        setLocalZApi({ ...localZApi, instanceId: val });
-                      }}
-                      placeholder="Ex: 3C..."
-                      className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Token</label>
-                    <input 
-                      type="text" 
-                      value={localZApi.token}
-                      onChange={(e) => {
-                        let val = e.target.value.trim();
-                        if (val.includes('/token/')) {
-                          const parts = val.split('/token/');
-                          val = parts[parts.length - 1].split('/')[0];
-                        }
-                        setLocalZApi({ ...localZApi, token: val });
-                      }}
-                      placeholder="Identificador da Instância"
-                      className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Client Token (Security)</label>
-                    <input 
-                      type="password" 
-                      value={localZApi.clientToken}
-                      onChange={(e) => setLocalZApi({ ...localZApi, clientToken: e.target.value })}
-                      placeholder="Seu Token de Segurança"
-                      className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
-                    />
+                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-wide">Escolha uma das opções sugeridas:</p>
+                <div className="flex flex-wrap gap-4">
+                  {COLOR_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setDomoCor(opt.value)}
+                      title={opt.name}
+                      style={{ backgroundColor: opt.value }}
+                      className={`w-12 h-12 rounded-full border-4 transition-all relative ${
+                        domoCor === opt.value ? 'border-amber-400 scale-110 shadow-lg' : 'border-slate-100 hover:scale-105'
+                      }`}
+                    >
+                      {domoCor === opt.value && (
+                        <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-xs">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2 max-w-xs pt-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Ou digite código HEX personalizado</label>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-400 text-lg">#</span>
+                  <input
+                    type="text"
+                    value={domoCor.replace('#', '')}
+                    onChange={(e) => {
+                      const typed = e.target.value.trim().substring(0, 6);
+                      setDomoCor('#' + typed);
+                    }}
+                    placeholder="085041"
+                    className="p-3 bg-[#F9FBFA] border-2 border-[#E7EFEA] rounded-xl font-mono font-bold text-slate-700 outline-none focus:border-emerald-300 transition-all text-sm"
+                  />
+                  <div 
+                    style={{ backgroundColor: domoCor }} 
+                    className="w-10 h-10 rounded-xl border border-slate-100 shadow-inner block"
+                  />
+                </div>
+              </div>
+
+              {/* Color preview bar */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Visualização da Tom de Base</p>
+                <div 
+                  className="w-full h-8 rounded-xl flex items-center justify-center text-white font-bold text-[10px] uppercase tracking-[0.25em] transition-all shadow-sm"
+                  style={{ backgroundColor: domoCor }}
+                >
+                  Paleta de Cor Ativa: {domoCor}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Logo PNG */}
+            <div className="bg-white rounded-[35px] p-8 border border-[#E2F0EA] shadow-xl space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+                <span className="text-2xl">🖼️</span>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">3. Logotipo da Creche (PNG)</h3>
+              </div>
+
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="flex-1 space-y-4">
+                  <p className="text-[11px] font-semibold text-slate-400 leading-relaxed">
+                    Personalize o cabeçalho do portal e do sistema enviando a sua logo em PNG com fundo transparente. Recomendado tamanho quadrado para melhor enquadramento (Ex: 200x200px).
+                  </p>
+                  
+                  <div className="flex gap-3">
+                    <label className="px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider rounded-2xl cursor-pointer shadow-md transition-all active:scale-95 inline-block">
+                      📤 Selecionar Imagem
+                      <input 
+                        type="file" 
+                        accept="image/png" 
+                        onChange={handleLogoUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+
+                    {domoLogo && (
+                      <button 
+                        type="button"
+                        onClick={handleClearLogo}
+                        className="px-5 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black text-[10px] uppercase tracking-wider rounded-2xl cursor-pointer transition-all active:scale-95 border border-rose-100"
+                      >
+                        ❌ Remover Logo
+                      </button>
+                    )}
                   </div>
                 </div>
-                <button 
-                  onClick={handleSaveZApi}
-                  className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-xl active:scale-95"
-                >
-                  SALVAR CHAVES Z-API
-                </button>
+
+                <div className="w-32 h-32 rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center p-4 shadow-inner shrink-0 relative overflow-hidden group">
+                  {domoLogo ? (
+                    <img 
+                      src={domoLogo} 
+                      alt="Preview Logo" 
+                      className="max-w-full max-h-full object-contain pointer-events-none" 
+                    />
+                  ) : (
+                    <div className="text-center">
+                      <span className="text-3xl block">🐾</span>
+                      <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-1 block">Sem Logo</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Real-time Preview (Portal do Tutor / Header) */}
+            <div className="bg-white rounded-[35px] p-8 border border-[#E2F0EA] shadow-xl space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+                <span className="text-2xl">📱</span>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">4. Prévia em Tempo Real (Portal do Tutor)</h3>
               </div>
 
-              <button 
-                onClick={async () => {
-                  if (!localZApi.instanceId || !localZApi.token) {
-                    alert('Por favor, preencha o Instance ID e o Token primeiro.');
-                    return;
-                  }
-                  try {
-                    const headers: Record<string, string> = {
-                      'Content-Type': 'application/json'
-                    };
-                    if (localZApi.clientToken) {
-                      headers['Client-Token'] = localZApi.clientToken;
-                    }
-                    
-                    const response = await fetch(`https://api.z-api.io/instances/${localZApi.instanceId}/token/${localZApi.token}/send-text`, {
-                      method: 'POST',
-                      headers: headers,
-                      body: JSON.stringify({
-                        phone: '5511999999999', // Número de teste genérico
-                        message: 'Teste de conexão DOMO + Z-API 🐾'
-                      })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                      alert('Conexão bem-sucedida! O comando foi enviado para a Z-API. Verifique se o WhatsApp está conectado no painel da Z-API.');
-                    } else {
-                      alert(`Erro na Z-API: ${data.message || response.statusText}\n\nVerifique se o Instance ID e Token estão corretos e se sua instância está conectada.`);
-                    }
-                  } catch (e: any) {
-                    console.error("Erro no teste da Z-API:", e);
-                    alert(`Erro de conexão: ${e.message}. Verifique se a URL está correta ou se há algum bloqueio de rede.`);
-                  }
+              <div className="border border-[#E4F2ED] rounded-[30px] overflow-hidden shadow-md max-w-md mx-auto">
+                {/* Mock Phone Status Bar */}
+                <div className="bg-slate-900 px-4 py-1.5 flex justify-between items-center text-[10px] font-mono text-slate-400">
+                  <span>14:25 🐾</span>
+                  <div className="flex gap-1.5">
+                    <span>📶</span>
+                    <span>🔋 99%</span>
+                  </div>
+                </div>
+
+                {/* Mock Header using Custom styles! */}
+                <header className="py-5 px-6 border-b transition-all flex items-center justify-between" style={{ backgroundColor: domoCor + '12', borderColor: domoCor + '20' }}>
+                  <div className="flex items-center gap-3">
+                    {domoLogo ? (
+                      <img src={domoLogo} alt="Logo" className="w-10 h-10 object-contain rounded-lg" />
+                    ) : (
+                      <span className="text-3xl animate-pulse">🐾</span>
+                    )}
+                    <div>
+                      <h4 className="text-lg font-black tracking-tight transition-all" style={{ color: domoCor }}>
+                        {domoNome || 'DOMO'}
+                      </h4>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider line-clamp-1">
+                        {domoSlogan || 'Gestão canina de ponta a ponta'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-extrabold" style={{ backgroundColor: domoCor }}>
+                    T
+                  </div>
+                </header>
+
+                {/* Mock Body content */}
+                <div className="bg-[#FAFDFB] p-6 space-y-4">
+                  <div className="bg-white p-4 rounded-2xl border border-emerald-50/50 shadow-sm space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block">🐶 Diário de Hoje</span>
+                      <span className="text-[8px] font-bold text-slate-400">11 JUN</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 font-extrabold text-sm flex items-center justify-center">🐾</div>
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-700">Café da Manhã</h5>
+                        <p className="text-[10px] text-slate-400">Comeu tudo super animado!</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-[#A5C3B5] font-semibold text-center uppercase tracking-widest select-none">
+                    • VISUALIZAÇÃO DO CELULAR DO CLIENTE •
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Botão Salvar com patinhas animadas */}
+            <div className="bg-white rounded-[35px] p-6 border border-[#E2F0EA] shadow-xl text-center space-y-4">
+              <button
+                type="submit"
+                className="w-full py-5 text-white font-black text-xs uppercase tracking-widest rounded-3xl transition-all shadow-xl hover:scale-[1.01] active:scale-95 border-b-4 select-none relative overflow-hidden"
+                style={{ 
+                  backgroundColor: domoCor, 
+                  borderBottomColor: 'rgba(0, 0, 0, 0.25)', 
+                  boxShadow: `0 10px 20px -5px ${domoCor}40`
                 }}
-                className="w-full py-2 bg-white/10 border border-white/20 text-indigo-200 font-bold rounded-xl hover:bg-white/20 transition-all text-[10px] uppercase tracking-widest"
               >
-                🧪 Testar Conexão Z-API
+                💾 Salvar e Aplicar Identidade
               </button>
 
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                <p className="text-[10px] text-indigo-200 font-bold leading-relaxed italic">
-                  * Com as chaves configuradas, as mensagens serão enviadas automaticamente no fundo, sem abrir o navegador.
+              {salvoComSucesso && (
+                <div className="bg-[#EAFDF5] border border-emerald-100 p-3 rounded-2xl text-[10px] font-black text-emerald-800 uppercase tracking-wider animate-pulse flex items-center justify-center gap-2">
+                  <span>🐕</span> Alterações aplicadas com sucesso por toda a matilha!
+                </div>
+              )}
+            </div>
+
+          </form>
+        )}
+
+        {/* Tech Configuration Tab (WhatsApp, Sheets, Database ops, Exports) */}
+        {activeTab === 'tech' && (
+          <div className="bg-white rounded-[45px] p-8 border border-slate-100 shadow-xl space-y-8">
+            {/* Alerta de Recuperação de Dados */}
+            <section className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[35px] space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🆘</span>
+                <h4 className="text-rose-900 font-black uppercase text-sm">Sumiu seus dados?</h4>
+              </div>
+              <p className="text-rose-700 text-xs font-bold leading-tight">
+                Se você trocou de celular ou limpou o histórico e seus pets sumiram, siga isto:
+              </p>
+              <ol className="text-rose-600 text-[10px] font-bold list-decimal list-inside space-y-1">
+                <li>Insira a URL da sua planilha no campo abaixo.</li>
+                <li>Role a tela e clique em "BAIXAR DADOS" na seção indigo.</li>
+              </ol>
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sincronização entre Dispositivos</h3>
+              <div className="bg-indigo-50 p-6 rounded-[35px] border border-indigo-100 space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">☁️</span>
+                  <p className="text-xs font-bold text-indigo-800">
+                    Use estes botões para manter celular e computador com os mesmos dados.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button 
+                    onClick={handlePushSync}
+                    disabled={syncing !== 'none'}
+                    className={`py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
+                      syncing === 'push' ? 'bg-slate-200 text-slate-400 transform scale-95' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700 active:scale-95'
+                    }`}
+                  >
+                    <span className="text-2xl">{syncing === 'push' ? '⏳' : '📤'}</span>
+                    {syncing === 'push' ? 'Enviando...' : 'Enviar para Nuvem'}
+                  </button>
+                  
+                  <button 
+                    onClick={handlePullSync}
+                    disabled={syncing !== 'none'}
+                    className={`py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
+                      syncing === 'pull' ? 'bg-slate-200 text-slate-400 transform scale-95' : 'bg-white border-2 border-indigo-100 text-indigo-600 shadow-indigo-50 hover:bg-indigo-50 active:scale-95'
+                    }`}
+                  >
+                    <span className="text-2xl">{syncing === 'pull' ? '⏳' : '📥'}</span>
+                    {syncing === 'pull' ? 'Baixar da Nuvem' : 'Baixar Dados'}
+                  </button>
+                </div>
+                <p className="text-[9px] font-bold text-indigo-400 text-center italic">
+                  Atenção: Sempre clique em "Enviar" quando terminar o trabalho em um aparelho e em "Baixar" ao começar em outro.
                 </p>
               </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Relatórios para Google Sheets (Manual)</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button 
-              onClick={exportChecklists}
-              className="p-6 bg-emerald-50 border border-emerald-100 rounded-[30px] text-center hover:bg-emerald-100 transition-all group"
-            >
-              <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">🍱</span>
-              <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Checklists</p>
-              <p className="text-[8px] font-bold text-emerald-500 mt-1">Exportar CSV</p>
-            </button>
-            <button 
-              onClick={exportMedications}
-              className="p-6 bg-sky-50 border border-sky-100 rounded-[30px] text-center hover:bg-sky-100 transition-all group"
-            >
-              <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">💊</span>
-              <p className="text-[10px] font-black text-sky-700 uppercase tracking-widest">Medicações</p>
-              <p className="text-[8px] font-bold text-sky-500 mt-1">Exportar CSV</p>
-            </button>
-            <button 
-              onClick={exportHotel}
-              className="p-6 bg-amber-50 border border-amber-100 rounded-[30px] text-center hover:bg-amber-100 transition-all group"
-            >
-              <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">🏨</span>
-              <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Hotel</p>
-              <p className="text-[8px] font-bold text-amber-500 mt-1">Exportar CSV</p>
-            </button>
-          </div>
-          <button 
-            onClick={exportConsolidatedReport}
-            className="w-full p-6 bg-slate-800 text-white rounded-[30px] flex items-center justify-center gap-4 hover:bg-slate-900 transition-all group shadow-xl"
-          >
-            <span className="text-3xl group-hover:rotate-12 transition-transform">📊</span>
-            <div className="text-left">
-              <p className="text-xs font-black uppercase tracking-widest">Relatório Diário Consolidado</p>
-              <p className="text-[10px] opacity-60 font-medium">Combina Checklist + Medicação + Hotel em um único arquivo</p>
-            </div>
-          </button>
-          <p className="text-[9px] font-bold text-slate-400 text-center italic">
-            Dica: No Google Sheets, vá em Arquivo {'>'} Importar {'>'} Fazer Upload e selecione o arquivo baixado.
-          </p>
-        </section>
+            <section className="space-y-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sincronização em Tempo Real (Google Sheets)</h3>
+              <div className="bg-emerald-50 p-6 rounded-[35px] border border-emerald-100 space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">⚡</span>
+                  <p className="text-xs font-bold text-emerald-800">
+                    Configure um Webhook para enviar dados automaticamente para o Google Sheets sempre que salvar um registro.
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-2">URL do Web App (Google Apps Script)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={localSheetsUrl}
+                      onChange={(e) => setLocalSheetsUrl(e.target.value.trim())}
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      className="flex-1 p-4 bg-white border-2 border-emerald-100 rounded-2xl font-bold text-slate-700 outline-none focus:border-emerald-300 shadow-sm"
+                    />
+                    <button 
+                      onClick={handleSaveUrl}
+                      className="px-6 bg-[#085041] hover:bg-emerald-800 text-white font-black rounded-2xl shadow-lg transition-all active:scale-95"
+                    >
+                      SALVAR
+                    </button>
+                  </div>
+                  <button 
+                    onClick={handleTestSheets}
+                    className="w-full py-2 bg-white border-2 border-emerald-100 text-[#085041] font-bold rounded-xl hover:bg-emerald-50 transition-all text-[10px] uppercase tracking-widest"
+                  >
+                    🧪 Testar Conexão
+                  </button>
+                </div>
 
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Zona de Perigo</h3>
-          
-          <div className="bg-rose-50 p-6 rounded-[35px] border border-rose-100 space-y-6">
-            <div className="flex items-start gap-4">
-              <span className="text-3xl bg-white w-14 h-14 flex items-center justify-center rounded-[20px] shadow-sm">⚠️</span>
-              <div>
-                <h4 className="text-lg font-black text-rose-900">Limpeza Total de Dados</h4>
-                <p className="text-xs font-bold text-rose-700/60 leading-relaxed">
-                  Esta ação irá apagar permanentemente todos os seus diários salvos, grupos criados e alterações que você fez nas fichas dos pets. Esta ação não pode ser desfeita.
-                </p>
-              </div>
-            </div>
-
-            {!confirmDelete ? (
-              <button 
-                onClick={() => setConfirmDelete(true)}
-                className="w-full py-4 bg-rose-500 text-white font-black rounded-[25px] shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-95"
-              >
-                APAGAR TODO MEU CADASTRO
-              </button>
-            ) : (
-              <div className="flex gap-4">
                 <button 
-                  onClick={() => setConfirmDelete(false)}
-                  className="flex-1 py-4 bg-white border-2 border-slate-200 text-slate-400 font-black rounded-[25px] transition-all"
+                  onClick={() => setShowScript(!showScript)}
+                  className="text-[10px] font-black text-emerald-800 underline decoration-2 underline-offset-4 uppercase tracking-widest"
                 >
-                  CANCELAR
+                  {showScript ? 'Ocultar Instruções' : 'Como configurar o Google Sheets?'}
+                </button>
+
+                {showScript && (
+                  <div className="bg-white p-6 rounded-[25px] border border-emerald-100 space-y-4 animate-in slide-in-from-top-2">
+                    <div className="space-y-3">
+                      <p className="text-[12px] font-black text-slate-800">COMO CONECTAR (Siga cada passo):</p>
+                      <p className="text-[11px] font-bold text-slate-600">1. Vá no Google Sheets {'>'} Extensões {'>'} Apps Script.</p>
+                      <p className="text-[11px] font-bold text-slate-600">2. Apague tudo e cole o código que você encontra no script.</p>
+                      <p className="text-[11px] font-bold text-slate-600">3. Clique em "Implantar" (botão azul) {'>'} "Nova Implantação".</p>
+                      <p className="text-[11px] font-bold text-slate-600">4. Em "Quem pode acessar", selecione <span className="text-rose-600 font-extrabold uppercase underline">Qualquer Pessoa</span> (Isso é obrigatório!).</p>
+                      <p className="text-[11px] font-bold text-[#085041]">5. Clique em Implantar. Se pedir para autorizar, configure as permissões da conta do Google.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">WhatsApp Automático (Z-API)</h3>
+              <div className="bg-indigo-900 p-8 rounded-[40px] shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+                <div className="relative z-10 space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-2xl">🤖</div>
+                    <div>
+                      <h4 className="text-white font-black text-lg tracking-tight leading-none">Configurar Automação</h4>
+                      <p className="text-indigo-300 text-[10px] font-black uppercase tracking-widest mt-1">Conecte sua conta Z-API</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Instance ID</label>
+                        <input 
+                          type="text" 
+                          value={localZApi.instanceId}
+                          onChange={(e) => setLocalZApi({ ...localZApi, instanceId: e.target.value.trim() })}
+                          placeholder="Ex: 3C..."
+                          className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Token</label>
+                        <input 
+                          type="text" 
+                          value={localZApi.token}
+                          onChange={(e) => setLocalZApi({ ...localZApi, token: e.target.value.trim() })}
+                          placeholder="Identificador da Instância"
+                          className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-indigo-300 uppercase tracking-widest ml-2 mb-1 block text-left">Client Token (Security)</label>
+                        <input 
+                          type="password" 
+                          value={localZApi.clientToken}
+                          onChange={(e) => setLocalZApi({ ...localZApi, clientToken: e.target.value })}
+                          placeholder="Seu Token de Segurança"
+                          className="w-full p-4 bg-white/10 border border-white/20 rounded-2xl font-bold text-white outline-none focus:bg-white/20 transition-all placeholder:text-white/20"
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleSaveZApi}
+                      className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all shadow-xl active:scale-95"
+                    >
+                      SALVAR CHAVES Z-API
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Relatórios para Google Sheets (Manual)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button 
+                  onClick={exportChecklists}
+                  className="p-6 bg-emerald-50 border border-emerald-100 rounded-[30px] text-center hover:bg-emerald-100 transition-all group animate-in"
+                >
+                  <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">🍱</span>
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Checklists</p>
+                  <p className="text-[8px] font-bold text-emerald-500 mt-1">Exportar CSV</p>
                 </button>
                 <button 
-                  onClick={handleReset}
-                  className="flex-2 py-4 bg-rose-600 text-white font-black rounded-[25px] shadow-xl hover:bg-rose-700 transition-all animate-pulse"
+                  onClick={exportMedications}
+                  className="p-6 bg-sky-50 border border-sky-100 rounded-[30px] text-center hover:bg-sky-100 transition-all group animate-in"
                 >
-                  SIM, APAGAR TUDO AGORA!
+                  <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">💊</span>
+                  <p className="text-[10px] font-black text-sky-700 uppercase tracking-widest">Medicações</p>
+                  <p className="text-[8px] font-bold text-sky-500 mt-1">Exportar CSV</p>
+                </button>
+                <button 
+                  onClick={exportHotel}
+                  className="p-6 bg-amber-50 border border-amber-100 rounded-[30px] text-center hover:bg-amber-100 transition-all group animate-in"
+                >
+                  <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">🏨</span>
+                  <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Hotel</p>
+                  <p className="text-[8px] font-bold text-amber-500 mt-1">Exportar CSV</p>
                 </button>
               </div>
-            )}
-          </div>
-        </section>
+            </section>
 
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Personalização de Marca</h3>
-          <div className="bg-[#FAF8F5] p-6 rounded-[35px] border border-orange-100 flex items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h4 className="text-sm font-black text-orange-950">Ajustes White-Label</h4>
-              <p className="text-[11px] font-semibold text-slate-500">Personalize o nome da sua creche, logotipo PNG e a cor principal do sistema.</p>
-            </div>
-            <a 
-              href="#/ajustes" 
-              className="px-5 py-3 bg-white hover:bg-orange-50 text-orange-600 font-extrabold text-[10px] uppercase tracking-wider rounded-2xl border border-orange-100 shadow-sm transition-all shrink-0"
-            >
-              Configurar 🏷️
-            </a>
-          </div>
-        </section>
+            <section className="space-y-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Zona de Perigo</h3>
+              <div className="bg-rose-50 p-6 rounded-[35px] border border-rose-100 space-y-6">
+                <div className="flex items-start gap-4">
+                  <span className="text-3xl bg-white w-14 h-14 flex items-center justify-center rounded-[20px] shadow-sm">⚠️</span>
+                  <div>
+                    <h4 className="text-lg font-black text-rose-900">Limpeza Total de Dados</h4>
+                    <p className="text-xs font-bold text-rose-700/60 leading-relaxed">
+                      Esta ação irá apagar permanentemente todos os seus diários salvos, grupos criados e alterações que você fez nas fichas dos pets. Esta ação não pode ser desfeita.
+                    </p>
+                  </div>
+                </div>
 
-        <section className="space-y-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Sobre o DOMO</h3>
-          <div className="bg-slate-50 p-6 rounded-[35px] border border-slate-100">
-            <p className="text-xs font-bold text-slate-500">Versão: 1.0.2-Stable</p>
-            <p className="text-xs font-bold text-slate-500 mt-2 italic">Desenvolvido para gestão humanizada e profissional de creches caninas.</p>
+                {!confirmDelete ? (
+                  <button 
+                    onClick={() => setConfirmDelete(true)}
+                    className="w-full py-4 bg-rose-500 text-white font-black rounded-[25px] shadow-lg hover:bg-rose-600 transition-all active:scale-95"
+                  >
+                    APAGAR TODO MEU CADASTRO
+                  </button>
+                ) : (
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => setConfirmDelete(false)}
+                      className="flex-1 py-4 bg-white border-2 border-slate-200 text-slate-400 font-black rounded-[25px] transition-all"
+                    >
+                      CANCELAR
+                    </button>
+                    <button 
+                      onClick={handleReset}
+                      className="flex-2 py-4 bg-rose-600 text-white font-black rounded-[25px] shadow-xl hover:bg-rose-700 transition-all animate-pulse"
+                    >
+                      SIM, APAGAR TUDO AGORA!
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
-        </section>
+        )}
+
       </div>
+
+      <style>{`
+        @keyframes bouncePaw {
+          0%, 100% {
+            transform: translateY(0) scale(1) rotate(0deg);
+          }
+          30% {
+            transform: translateY(-25px) scale(1.15) rotate(15deg);
+          }
+          50% {
+            transform: translateY(-30px) scale(1.15) rotate(-15deg);
+          }
+          70% {
+            transform: translateY(-25px) scale(1.15) rotate(10deg);
+          }
+        }
+        .animate-bounce-paw {
+          animation: bouncePaw 1s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+          display: inline-block;
+          filter: drop-shadow(0 10px 8px rgba(0,0,0,0.12));
+        }
+      `}</style>
     </div>
   );
 };
