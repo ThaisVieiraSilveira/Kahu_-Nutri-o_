@@ -155,7 +155,13 @@ const PetChecklist: React.FC<PetChecklistProps> = ({
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500 pb-32">
       <div className="bg-white rounded-[35px] p-6 shadow-xl border border-white flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-emerald-50 rounded-[22px] flex items-center justify-center text-3xl shadow-inner border border-white shrink-0">🐶</div>
+          <div className="w-16 h-16 bg-emerald-50 rounded-[22px] flex items-center justify-center text-3xl shadow-inner border border-white shrink-0 overflow-hidden">
+            {pet.foto ? (
+              <img src={pet.foto} alt={pet.pet_nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              "🐶"
+            )}
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg text-[10px] font-black">{pet.id}</span>

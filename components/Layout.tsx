@@ -3,23 +3,12 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../src/firebase';
+import { useTenant } from '../src/hooks/useTenant';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
 
-  const [domoNome, setDomoNome] = React.useState(localStorage.getItem('domo_nome') || 'DOMO');
-  const [domoCor, setDomoCor] = React.useState(localStorage.getItem('domo_cor') || '#085041');
-  const [domoLogo, setDomoLogo] = React.useState(localStorage.getItem('domo_logo') || '');
-
-  React.useEffect(() => {
-    const handleUpdate = () => {
-      setDomoNome(localStorage.getItem('domo_nome') || 'DOMO');
-      setDomoCor(localStorage.getItem('domo_cor') || '#085041');
-      setDomoLogo(localStorage.getItem('domo_logo') || '');
-    };
-    window.addEventListener('domoBrandingChanged', handleUpdate);
-    return () => window.removeEventListener('domoBrandingChanged', handleUpdate);
-  }, []);
+  const { nome: domoNome, cor: domoCor, logo: domoLogo } = useTenant();
 
   const navItems = [
     { path: '/', label: 'Painel', icon: '🐾' },
@@ -43,22 +32,23 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col">
       <header 
-        className="py-4 px-6 sticky top-0 z-40 transition-all border-b"
+        className="py-4 px-6 sticky top-0 z-40 transition-all shadow-md"
         style={{ 
-          backgroundColor: domoCor + '0A', // Soft background with 4% opacity
-          borderColor: domoCor + '1A' // Border with 10% opacity
+          backgroundColor: domoCor,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.15)'
         }}
       >
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <Link to="/" className="flex items-center gap-2.5 group">
             {domoLogo ? (
-              <img src={domoLogo} alt="Logo" className="w-9 h-9 object-contain rounded-lg" />
+              <div className="w-9 h-9 bg-white p-1 rounded-xl flex items-center justify-center shadow-inner overflow-hidden shrink-0">
+                <img src={domoLogo} alt="Logo" className="w-full h-full object-contain" />
+              </div>
             ) : (
-              <span className="text-3xl group-hover:rotate-12 transition-transform">🐶</span>
+              <span className="text-3xl group-hover:rotate-12 transition-transform select-none">🐶</span>
             )}
             <h1 
-              className="text-2xl font-black tracking-tight transition-colors"
-              style={{ color: domoCor }}
+              className="text-2xl font-extrabold tracking-tight text-white transition-colors"
             >
               {domoNome}
             </h1>
@@ -72,10 +62,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className="flex items-center gap-1 font-extrabold text-[11px] uppercase tracking-wider transition-colors py-2 px-1"
+                    className="flex items-center gap-1 font-extrabold text-[11px] uppercase tracking-wider transition-colors py-2 px-1 hover:text-white"
                     style={{ 
-                      color: isActive ? domoCor : '#64748b',
-                      borderBottom: isActive ? `2.5px solid ${domoCor}` : '2.5px solid transparent'
+                      color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
+                      borderBottom: isActive ? '2.5px solid #ffffff' : '2.5px solid transparent'
                     }}
                   >
                     <span>{item.icon}</span>

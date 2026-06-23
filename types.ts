@@ -39,6 +39,7 @@ export interface Pet {
   raca?: string;
   tutor_nome?: string;
   telefone?: string;
+  foto?: string; // Base64 or image URL
 }
 
 export interface ChecklistEntry {

@@ -16,11 +16,13 @@ import Hotel from './components/Hotel';
 import Settings from './components/Settings';
 import Login from './src/pages/Login';
 import Ajustes from './src/pages/Ajustes';
+import CadastroPublico from './src/pages/CadastroPublico';
 import { useAuth } from './src/hooks/useAuth';
+import { usePets } from './src/hooks/usePets';
 import { Pet, ChecklistEntry, PetGroup, Medication as MedicationType, MedicationLog, HotelStay } from './types';
 
 const App: React.FC = () => {
-  const [pets, setPets] = useState<Pet[]>([]);
+  const { pets, addPet, updatePet, deletePet: deletePetFromFirestore, loading: petsLoading } = usePets();
   const [checklists, setChecklists] = useState<ChecklistEntry[]>([]);
   const [groups, setGroups] = useState<PetGroup[]>([]);
   const [medications, setMedications] = useState<MedicationType[]>([]);
@@ -62,42 +64,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        const basePets = await fetchPets();
-        
-        const storedMaster = localStorage.getItem('kahu_master_pets');
-        const storedDeleted = localStorage.getItem('kahu_deleted_pets');
-        const deletedIds: string[] = storedDeleted ? JSON.parse(storedDeleted) : [];
-        
-        let currentPets = basePets;
-        if (storedMaster) {
-          const customPets: Pet[] = JSON.parse(storedMaster);
-          
-          // Se temos um master salvo, ele é a nossa base de verdade para os pets que já existiam
-          // Mas queremos manter a capacidade de receber novos pets do "servidor" (basePets)
-          // que ainda não foram vistos ou modificados.
-          
-          const customMap = new Map(customPets.map(p => [p.id, p]));
-          const deletedSet = new Set(deletedIds);
-
-          // Filtrar basePets: remover os que foram deletados explicitamente
-          const filteredBase = basePets.filter(bp => !deletedSet.has(bp.id));
-
-          // Mesclar: base filtrada + overrides do customMap
-          const merged = filteredBase.map(bp => {
-            const custom = customMap.get(bp.id);
-            if (custom) customMap.delete(bp.id);
-            return custom ? { ...bp, ...custom } : bp;
-          });
-
-          // Adicionar pets que só existem no customMap (novos cadastros)
-          currentPets = [...merged, ...Array.from(customMap.values())];
-        } else if (deletedIds.length > 0) {
-          // Se não tem master mas tem deletados (caso raro mas possível)
-          const deletedSet = new Set(deletedIds);
-          currentPets = basePets.filter(bp => !deletedSet.has(bp.id));
-        }
-        setPets(currentPets);
-
         const storedCheck = localStorage.getItem('kahu_checklists');
         let localEntries: ChecklistEntry[] = storedCheck ? JSON.parse(storedCheck) : [];
         setChecklists(localEntries);
@@ -136,7 +102,6 @@ const App: React.FC = () => {
               const cloudData = await response.json();
               if (cloudData) {
                 if (cloudData.pets && cloudData.pets.length > 0) {
-                  setPets(cloudData.pets);
                   localStorage.setItem('kahu_master_pets', JSON.stringify(cloudData.pets));
                 }
                 if (cloudData.checklists) {
@@ -205,16 +170,13 @@ const App: React.FC = () => {
     triggerMasterSync();
   };
 
-  const updatePetMaster = (updatedPet: Pet) => {
-    setPets(prev => {
-      const exists = prev.find(p => p.id === updatedPet.id);
-      const newPets = exists 
-        ? prev.map(p => p.id === updatedPet.id ? updatedPet : p)
-        : [...prev, updatedPet];
-      
-      saveToLocal('kahu_master_pets', newPets);
-      return newPets;
-    });
+  const updatePetMaster = async (updatedPet: Pet) => {
+    const exists = pets.some(p => p.id === updatedPet.id);
+    if (exists) {
+      await updatePet(updatedPet.id, updatedPet);
+    } else {
+      await addPet(updatedPet);
+    }
 
     // Auto-sync individual pet record
     syncToSheets('pet', updatedPet);
@@ -373,7 +335,6 @@ const App: React.FC = () => {
       
       if (cloudData) {
         if (cloudData.pets) {
-          setPets(cloudData.pets);
           saveToLocal('kahu_master_pets', cloudData.pets);
         }
         if (cloudData.checklists) {
@@ -419,7 +380,7 @@ const App: React.FC = () => {
     });
   };
 
-  const deletePet = (petId: string) => {
+  const deletePet = async (petId: string) => {
     // Adiciona ao registro de deletados para persistência
     const storedDeleted = localStorage.getItem('kahu_deleted_pets');
     const deletedIds: string[] = storedDeleted ? JSON.parse(storedDeleted) : [];
@@ -428,11 +389,7 @@ const App: React.FC = () => {
       localStorage.setItem('kahu_deleted_pets', JSON.stringify(newDeleted));
     }
 
-    setPets(prev => {
-      const newPets = prev.filter(p => p.id !== petId);
-      localStorage.setItem('kahu_master_pets', JSON.stringify(newPets));
-      return newPets;
-    });
+    await deletePetFromFirestore(petId);
     
     // Também remove o pet de todos os grupos
     setGroups(prev => {
@@ -448,12 +405,19 @@ const App: React.FC = () => {
   const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, loading: authLoading } = useAuth();
     
+    const currentNome = localStorage.getItem('domo_nome') || 'DOMO';
+    const currentCor = localStorage.getItem('domo_cor') || '#085041';
+    
     if (authLoading) {
       return (
-        <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center">
+        <div className="min-h-screen bg-[#F0FAF6] flex flex-col items-center justify-center">
           <div className="text-7xl animate-bounce mb-6">🐾</div>
-          <h1 className="text-3xl font-black text-emerald-800 tracking-tighter">DOMO</h1>
-          <p className="text-emerald-600 font-bold animate-pulse mt-2">Sincronizando a matilha DOMO...</p>
+          <h1 className="text-3xl font-black tracking-tighter" style={{ color: currentCor }}>
+            {currentNome}
+          </h1>
+          <p className="font-bold animate-pulse mt-2 uppercase text-[10px] tracking-widest text-[#085041]">
+            Sincronizando a matilha...
+          </p>
         </div>
       );
     }
@@ -465,12 +429,18 @@ const App: React.FC = () => {
     return <>{children}</>;
   };
 
-  if (loading) {
+  if (loading || petsLoading) {
+    const currentNome = localStorage.getItem('domo_nome') || 'DOMO';
+    const currentCor = localStorage.getItem('domo_cor') || '#085041';
     return (
-      <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-[#F0FAF6] flex flex-col items-center justify-center">
         <div className="text-7xl animate-bounce mb-6">🐾</div>
-        <h1 className="text-3xl font-black text-emerald-800 tracking-tighter">DOMO</h1>
-        <p className="text-emerald-600 font-bold animate-pulse mt-2">Carregando a matilha DOMO...</p>
+        <h1 className="text-3xl font-black tracking-tighter" style={{ color: currentCor }}>
+          {currentNome}
+        </h1>
+        <p className="font-bold animate-pulse mt-2 uppercase text-[10px] tracking-widest text-[#085041]">
+          Carregando a matilha...
+        </p>
       </div>
     );
   }
@@ -479,6 +449,7 @@ const App: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/cadastro-publico" element={<CadastroPublico />} />
         <Route path="/*" element={
           <ProtectedRoute>
             <Layout>
@@ -488,6 +459,10 @@ const App: React.FC = () => {
                     pets={pets} 
                     checklists={checklists} 
                     groups={groups} 
+                    medications={medications}
+                    medicationLogs={medicationLogs}
+                    hotelStays={hotelStays}
+                    onSaveMedicationLog={saveMedicationLog}
                     onUpdatePet={updatePetMaster}
                     onPullSync={pullMasterSync}
                     onPushSync={pushMasterSync}
@@ -502,7 +477,7 @@ const App: React.FC = () => {
                     }}
                   />
                 } />
-                <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} />} />
+                <Route path="/cadastro" element={<CadastroLooker pets={pets} onDeletePet={deletePet} onSavePet={updatePetMaster} />} />
                 <Route path="/checklist_looker" element={<ChecklistLooker pets={pets} checklists={checklists} />} />
                 <Route path="/cadastro/:petId" element={<Cadastro pets={pets} onSave={updatePetMaster} />} />
                 <Route path="/grupos" element={<Groups pets={pets} groups={groups} onSaveGroups={saveGroups} />} />

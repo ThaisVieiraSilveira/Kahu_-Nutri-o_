@@ -10,8 +10,26 @@ service cloud.firestore {
     match /tenants/{tenantId} {
       // Publicly readable so the guardian portal renders with the customized theme or logo
       allow read: if true;
-      // Writing (create/update/delete) is restricted strictly to authenticated admin users
-      allow write: if request.auth != null;
+      // Writing (create/update/delete) is restricted strictly to authenticated user of that tenantId
+      allow write: if request.auth != null && request.auth.uid == tenantId;
+    }
+
+    // Rules for Pets database
+    match /pets/{petId} {
+      // Restrict read/write to the authenticated tenant owner of the pet
+      allow read, write: if request.auth != null && (
+        (resource == null && request.resource.data.tenant_id == request.auth.uid) ||
+        (resource != null && resource.data.tenant_id == request.auth.uid)
+      );
+    }
+
+    // Rules for food and feeding logs/registros database
+    match /registros/{regId} {
+      // Restrict read/write to the authenticated tenant owner of the log
+      allow read, write: if request.auth != null && (
+        (resource == null && request.resource.data.tenant_id == request.auth.uid) ||
+        (resource != null && resource.data.tenant_id == request.auth.uid)
+      );
     }
   }
 }

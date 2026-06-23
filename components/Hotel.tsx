@@ -311,8 +311,12 @@ const Hotel: React.FC<HotelProps> = ({
             <div key={stay.id} className="bg-white rounded-[40px] border border-indigo-50 shadow-sm overflow-hidden flex flex-col md:flex-row">
               {/* PET INFO SIDEBAR */}
               <div className="bg-indigo-50/50 p-8 md:w-72 border-r border-indigo-50 flex flex-col items-center text-center">
-                <div className="w-24 h-24 bg-white rounded-[32px] flex items-center justify-center text-5xl shadow-sm mb-4 border-2 border-indigo-100">
-                  🐶
+                <div className="w-24 h-24 bg-white rounded-[32px] flex items-center justify-center text-5xl shadow-sm mb-4 border-2 border-indigo-100 overflow-hidden">
+                  {stay.pet?.foto ? (
+                    <img src={stay.pet.foto} alt={stay.pet.pet_nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    "🐶"
+                  )}
                 </div>
                 <h3 className="text-2xl font-black text-indigo-900 leading-tight mb-1">{stay.pet?.pet_nome}</h3>
                 <span className="bg-indigo-200 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4">ID: {stay.petId}</span>

@@ -157,7 +157,13 @@ const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
                     onClick={() => navigate(`/pet/${pet.id}`)}
                     className="flex items-center gap-4 p-4 bg-slate-50 rounded-3xl border border-transparent hover:border-sky-200 hover:bg-white transition-all cursor-pointer group"
                   >
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform">🐶</div>
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform overflow-hidden border border-slate-100">
+                      {pet.foto ? (
+                        <img src={pet.foto} alt={pet.pet_nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        "🐶"
+                      )}
+                    </div>
                     <div>
                       <p className="font-black text-slate-800 group-hover:text-sky-600 transition-colors">{pet.pet_nome}</p>
                       <p className="text-[10px] font-bold text-slate-300 uppercase">{pet.id} • {pet.raca}</p>
@@ -224,7 +230,13 @@ const Groups: React.FC<GroupsProps> = ({ pets, groups, onSaveGroups }) => {
                         : 'bg-white border-slate-50 text-slate-400 hover:border-sky-100'
                     }`}
                   >
-                    <span className="text-xl mb-1 group-hover:scale-110 transition-transform">🐶</span>
+                    {pet.foto ? (
+                      <div className="w-8 h-8 rounded-full overflow-hidden mb-1 group-hover:scale-110 transition-transform border border-slate-200 shadow-inner">
+                        <img src={pet.foto} alt={pet.pet_nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                    ) : (
+                      <span className="text-xl mb-1 group-hover:scale-110 transition-transform">🐶</span>
+                    )}
                     <span className="text-[10px] font-black leading-tight uppercase">{pet.pet_nome}</span>
                     <span className={`text-[8px] font-bold ${isSelected ? 'text-sky-200' : 'text-slate-300'}`}>{pet.id}</span>
                   </button>

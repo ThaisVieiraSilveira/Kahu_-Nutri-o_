@@ -1,17 +1,125 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet } from '../types';
+import { useTenant } from '../src/hooks/useTenant';
+import { Copy, Check, Share2, ShieldCheck, Trash2, Link as LinkIcon, Info, Users, Smartphone, BookOpen } from 'lucide-react';
 
 interface CadastroLookerProps {
   pets: Pet[];
   onDeletePet: (id: string) => void;
+  onSavePet?: (pet: Pet) => void;
 }
 
-const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet }) => {
+const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet, onSavePet }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'alergia' | 'doenca'>('all');
+
+  // Multi-view white label and pending integration
+  const [showGenerator, setShowGenerator] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [pendentes, setPendentes] = useState<any[]>([]);
+
+  const { nome: domoNome, cor: domoCor, slogan: domoSlogan } = useTenant();
+
+  useEffect(() => {
+    const loadPendings = () => {
+      const stored = localStorage.getItem('domo_cadastros_pendentes');
+      if (stored) {
+        try {
+          setPendentes(JSON.parse(stored));
+        } catch (e) {
+          console.error("Erro ao converter cadastros públicos pendentes:", e);
+        }
+      } else {
+        setPendentes([]);
+      }
+    };
+
+    loadPendings();
+    window.addEventListener('domoPendingRegistrationsChanged', loadPendings);
+    return () => window.removeEventListener('domoPendingRegistrationsChanged', loadPendings);
+  }, []);
+
+  const customSlug = useMemo(() => {
+    return domoNome
+      .toLowerCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+  }, [domoNome]);
+
+  const publicLink = useMemo(() => {
+    return `${window.location.origin}/#/cadastro-publico?creche=${customSlug || 'patinhas'}`;
+  }, [customSlug]);
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(publicLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareWhatsapp = () => {
+    const textMsg = `Olá! Preencha o cadastro do seu pet pelo link: ${publicLink}`;
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(textMsg)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleApprove = (index: number) => {
+    const target = pendentes[index];
+    if (!target) return;
+
+    const newPet: Pet = {
+      id: target.id || `PET_${Date.now()}`,
+      pet_nome: target.pet_nome,
+      raca: target.raca || 'Mestiço',
+      tutor_nome: target.tutor_nome,
+      telefone: target.telefone,
+      dia_semana: target.dia_semana || 'Segunda',
+      possui_alergia: target.possui_alergia || 'Não',
+      alimentos_proibidos: target.alimentos_proibidos || '',
+      possui_doenca: 'Não',
+      doenca_qual: '',
+      comportamento_alimentar: 'Focado',
+      precisa_estimulo: 'Não',
+      tipo_alimentacao: target.tipo_alimentacao || 'Padrão',
+      quantidade_oferecida: target.quantidade_oferecida || '',
+      quantidade_aproximada: '',
+      marca_racao: '',
+      especificacao_racao: '',
+      oferece_extras: 'Sim',
+      ingestao_agua: 'Ideal',
+      interesse_agua: 'Médio',
+      ajuda_beber_agua: 'Não',
+      sede_pos_creche: 'Não',
+      escore_corporal: 'Ideal',
+      observacoes: target.observacoes || 'Importado de cadastro público.',
+      peso_pet: '10kg',
+      foto: target.foto || ''
+    };
+
+    if (onSavePet) {
+      onSavePet(newPet);
+    }
+
+    const updatedPendings = [...pendentes];
+    updatedPendings.splice(index, 1);
+    setPendentes(updatedPendings);
+    localStorage.setItem('domo_cadastros_pendentes', JSON.stringify(updatedPendings));
+    alert(`Sucesso! O prontuário de ${target.pet_nome} foi adicionado à matilha principal de ${domoNome}!`);
+  };
+
+  const handleReject = (index: number) => {
+    if (window.confirm(`Tem certeza que deseja recusar e apagar o formulário de ${pendentes[index].pet_nome}?`)) {
+      const updatedPendings = [...pendentes];
+      updatedPendings.splice(index, 1);
+      setPendentes(updatedPendings);
+      localStorage.setItem('domo_cadastros_pendentes', JSON.stringify(updatedPendings));
+    }
+  };
 
   const filteredPets = useMemo(() => {
     return pets.filter(pet => {
@@ -30,54 +138,202 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet }) =>
   }, [pets, searchTerm, filterType]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-700">
+    <div className="space-y-6 animate-in fade-in duration-700 text-left">
       {/* HEADER ADMINISTRATIVE */}
-      <div className="bg-[#1a2234] rounded-[40px] p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="bg-white rounded-[32px] p-8 border border-slate-150 shadow-sm space-y-6">
+        {/* Linha 1: Título e Contador */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
           <div>
-            <h2 className="text-4xl font-black tracking-tighter text-sky-400">Cadastro DOMO</h2>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Gestão Central de Prontuários ({pets.length} ativos)</p>
-            <button 
-              onClick={() => navigate('/settings')}
-              className="mt-4 text-[10px] font-black text-rose-400 hover:text-rose-300 underline decoration-2 underline-offset-4 uppercase tracking-widest flex items-center gap-2"
-            >
-              <span>🆘 Sumiu seus pets? Clique aqui para recuperar da nuvem</span>
-            </button>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
-            <button 
-              onClick={() => navigate('/cadastro/novo')}
-              className="px-6 py-3 bg-white/5 border-2 border-dashed border-sky-500/50 rounded-2xl flex flex-col items-center justify-center hover:bg-sky-500/10 hover:border-sky-500 transition-all group"
-            >
-              <span className="text-[10px] font-black text-sky-400 uppercase tracking-widest leading-none mb-1">Adicionar</span>
-              <span className="text-xs font-black text-white group-hover:scale-110 transition-transform">NOVO CADASTRO</span>
-            </button>
-
-            <div className="h-10 w-px bg-white/10 mx-2 hidden md:block"></div>
-
-            <button 
-              onClick={() => setFilterType('all')}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filterType === 'all' ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
-            >
-              TODOS
-            </button>
-            <button 
-              onClick={() => setFilterType('alergia')}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${filterType === 'alergia' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
-            >
-              <span className={filterType === 'alergia' ? 'text-white' : 'text-amber-400'}>⚠️</span> ALERGIAS
-            </button>
-            <button 
-              onClick={() => setFilterType('doenca')}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${filterType === 'doenca' ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
-            >
-              <span className={filterType === 'doenca' ? 'text-white' : 'text-purple-400'}>📋</span> DOENÇAS
-            </button>
+            <div className="flex items-center gap-3">
+              <h2 className="text-4xl font-extrabold tracking-tight text-[#085041] leading-none">Cadastro</h2>
+              <span className="bg-emerald-50 text-emerald-800 border border-emerald-150 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                {pets.length} ativos
+              </span>
+            </div>
+            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1.5">Gestão central de prontuários</p>
           </div>
         </div>
+
+        {/* Linha 2: Ações Principais lado a lado */}
+        <div className="flex flex-wrap items-center gap-4">
+          <button 
+            type="button"
+            onClick={() => navigate('/cadastro/novo')}
+            className="px-5 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-md shadow-emerald-700/10 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+            style={{ backgroundColor: domoCor }}
+          >
+            <span>+ Adicionar Pet</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setShowGenerator(prev => !prev)}
+            className={`px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer border-2 active:scale-95 ${
+              showGenerator 
+                ? 'bg-slate-50 border-emerald-600 text-emerald-700' 
+                : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+            }`}
+          >
+            <span>🔗 Gerar link para tutor</span>
+          </button>
+        </div>
+
+        {/* Separator Line */}
+        <div className="h-px bg-slate-100"></div>
+
+        {/* Linha 3: Filtros como pills clicáveis */}
+        <div className="flex flex-wrap items-center gap-2.5 select-none">
+          <button 
+            type="button"
+            onClick={() => setFilterType('all')}
+            className={`px-4.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+              filterType === 'all' 
+                ? 'bg-[#085041] text-white shadow-lg shadow-[#085041]/15' 
+                : 'bg-slate-100 hover:bg-slate-200/80 text-slate-500'
+            }`}
+            style={filterType === 'all' ? { backgroundColor: domoCor } : undefined}
+          >
+            Todos
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setFilterType('alergia')}
+            className={`px-4.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer ${
+              filterType === 'alergia' 
+                ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/15' 
+                : 'bg-slate-100 hover:bg-slate-200/80 text-slate-500'
+            }`}
+          >
+            <span>⚠️ Alergias</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => setFilterType('doenca')}
+            className={`px-4.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer ${
+              filterType === 'doenca' 
+                ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/15' 
+                : 'bg-slate-100 hover:bg-slate-200/80 text-slate-500'
+            }`}
+          >
+            <span>🏥 Doenças</span>
+          </button>
+        </div>
       </div>
+
+      {/* COLLAPSIBLE PUBLIC LINK GENERATOR CARD */}
+      {showGenerator && (
+        <div className="bg-gradient-to-r from-emerald-50 to-[#E6F6F0] rounded-[32px] p-6 border-2 border-emerald-100 shadow-xl space-y-4 animate-in slide-in-from-top duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="text-2xl">🔗</span>
+              <div>
+                <h4 className="font-black text-sm text-slate-800 leading-none">Link de Pré-Cadastro para Tutores</h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Este link público permite que tutores cadastrem seus cães sem precisar de login</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="w-full bg-white px-4 py-3.5 rounded-2xl border border-emerald-200/60 font-mono text-xs text-slate-600 truncate shadow-inner">
+              {publicLink}
+            </div>
+            
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-shrink-0">
+              <button
+                onClick={handleCopyLink}
+                className="flex-grow sm:flex-grow-0 px-5 py-3.5 bg-white text-slate-700 hover:bg-slate-50 rounded-2xl font-black text-xs uppercase tracking-wider border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-2"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-600" strokeWidth={3} /> : <Copy className="w-4 h-4 text-slate-400" />}
+                {copied ? 'Copiado!' : 'Copiar Link'}
+              </button>
+              
+              <button
+                onClick={handleShareWhatsapp}
+                className="flex-grow sm:flex-grow-0 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-md shadow-emerald-600/10 transition-all flex items-center justify-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PENDING APPROVAL QUEUE CARD */}
+      {pendentes.length > 0 && (
+        <div className="bg-[#FFFBF2] rounded-[40px] p-8 border-2 border-amber-100 shadow-xl space-y-6 animate-in slide-in-from-top duration-500">
+          <div className="flex items-center justify-between border-b border-amber-100/50 pb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl animate-bounce">🐾</span>
+              <div>
+                <h3 className="text-2xl font-black tracking-tight text-slate-800">Pré-Cadastros de Tutores</h3>
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">({pendentes.length}) Fichas enviadas aguardando aprovação</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {pendentes.map((ped, idx) => (
+              <div key={ped.id || idx} className="bg-white rounded-3xl p-6 border border-amber-100 shadow-sm hover:shadow-md transition-all space-y-4 flex flex-col justify-between relative group">
+                <div className="absolute top-4 right-4 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-xl shadow-inner text-amber-600 group-hover:scale-105 transition-transform overflow-hidden border border-amber-100">
+                      {ped.foto ? (
+                        <img src={ped.foto} alt={ped.pet_nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        "🐶"
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-base text-slate-800 leading-none mb-1">{ped.pet_nome}</h4>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{ped.raca}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs text-slate-600 font-medium pt-1">
+                    <p>👤 <strong>Tutor:</strong> {ped.tutor_nome}</p>
+                    <p>📞 <strong>WhatsApp:</strong> {ped.telefone}</p>
+                    <p>📅 <strong>Escala:</strong> <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-extrabold uppercase text-[10px] border border-emerald-100">{ped.dia_semana}</span></p>
+                    
+                    {ped.possui_alergia === 'Sim' && (
+                      <div className="p-2 border border-rose-100 bg-rose-50/50 rounded-lg text-[11px] text-rose-700 mt-2">
+                        ⚠️ <strong>Restrições/Alergias:</strong> {ped.alimentos_proibidos}
+                      </div>
+                    )}
+
+                    {ped.tipo_alimentacao === 'Especial' && (
+                      <div className="p-2 border border-amber-100 bg-amber-100/30 rounded-lg text-[11px] text-amber-800 mt-2">
+                        🥩 <strong>Alimentação/Dieta:</strong> {ped.quantidade_oferecida}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-4 border-t border-slate-50">
+                  <button
+                    onClick={() => handleApprove(idx)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-3 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/10 transition-all text-center flex items-center justify-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> Aprovar e Cadastrar
+                  </button>
+                  <button
+                    onClick={() => handleReject(idx)}
+                    className="w-10 h-10 bg-slate-50 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl border border-slate-100 transition-all shadow-sm flex items-center justify-center font-bold"
+                    title="Excluir Pré-Cadastro"
+                  >
+                    ❌
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
 
       {/* SEARCH BAR */}
       <div className="relative group">
@@ -111,7 +367,13 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet }) =>
                 <tr key={pet.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="p-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">🐶</div>
+                      <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform overflow-hidden border border-slate-200">
+                        {pet.foto ? (
+                          <img src={pet.foto} alt={pet.pet_nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          "🐶"
+                        )}
+                      </div>
                       <div>
                         <p className="font-black text-slate-800 leading-none mb-1 group-hover:text-sky-600 transition-colors">{pet.pet_nome}</p>
                         <p className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">{pet.id}</p>

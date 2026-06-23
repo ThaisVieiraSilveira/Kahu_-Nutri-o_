@@ -15,6 +15,51 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
   const isNew = petId === 'novo';
   const [formData, setFormData] = useState<Pet | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        alert("A imagem deve ter no máximo 2MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => prev ? { ...prev, foto: reader.result as string } : null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        alert("A imagem deve ter no máximo 2MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => prev ? { ...prev, foto: reader.result as string } : null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const queryParams = new URLSearchParams(location.search);
   const redirectPath = queryParams.get('redirect');
@@ -102,7 +147,55 @@ const Cadastro: React.FC<CadastroProps> = ({ pets, onSave }) => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         <button onClick={() => navigate(-1)} className="absolute top-6 left-6 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all z-20">←</button>
         
-        <div className="w-28 h-28 bg-white/10 rounded-[35px] flex items-center justify-center text-5xl shadow-inner shrink-0 z-10">🐶</div>
+        <div className="flex flex-col items-center gap-2 shrink-0 z-10">
+          <label 
+            htmlFor="pet-photo-input" 
+            className={`w-28 h-28 rounded-[35px] flex items-center justify-center text-5xl shadow-inner cursor-pointer relative group overflow-hidden border-2 transition-all duration-300 ${
+              dragActive 
+                ? 'border-emerald-300 bg-emerald-800 scale-105' 
+                : 'border-white/10 bg-white/10 hover:border-emerald-400 hover:scale-[1.02]'
+            }`}
+            onDragEnter={handleDrag}
+            onDragOver={handleDrag}
+            onDragLeave={handleDrag}
+            onDrop={handleDrop}
+          >
+            {formData.foto ? (
+              <img 
+                src={formData.foto} 
+                alt={formData.pet_nome || "Pet"} 
+                className="w-full h-full object-cover rounded-[35px] transition-transform duration-300 group-hover:scale-105" 
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span>🐶</span>
+            )}
+            
+            {/* Hover Camera Overlay */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center rounded-[35px] text-white">
+              <span className="text-xl">📷</span>
+              <span className="text-[10px] font-black tracking-widest uppercase mt-1">Alterar</span>
+            </div>
+          </label>
+          
+          <input 
+            type="file" 
+            id="pet-photo-input" 
+            accept="image/*" 
+            onChange={handleFileChange} 
+            className="hidden" 
+          />
+
+          {formData.foto && (
+            <button
+              type="button"
+              onClick={() => setFormData(prev => prev ? { ...prev, foto: undefined } : null)}
+              className="text-[10px] font-black text-rose-300 hover:text-rose-100 uppercase tracking-widest transition-colors"
+            >
+              Remover Foto
+            </button>
+          )}
+        </div>
         <div className="flex-grow text-center md:text-left z-10">
           <p className="text-[10px] font-black text-emerald-300 uppercase tracking-[0.3em] mb-1">
             {isNew ? 'NOVO REGISTRO NO SISTEMA' : 'REGISTRO MESTRE COMPLETO'}

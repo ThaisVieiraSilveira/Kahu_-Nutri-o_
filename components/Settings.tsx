@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Pet, ChecklistEntry, Medication, MedicationLog, HotelStay } from '../types';
+import { useTenant } from '../src/hooks/useTenant';
 
 interface SettingsProps {
   pets: Pet[];
@@ -35,15 +36,18 @@ const Settings: React.FC<SettingsProps> = ({
   // Navigation Tabs: 'brand' (Ajustes de Marca) or 'tech' (Conectividade e Relatórios)
   const [activeTab, setActiveTab] = useState<'brand' | 'tech'>('brand');
 
+  const { nome, cor, logo, slogan, salvar, loading: tenantLoading } = useTenant();
+
   // White-Label State variables
-  const [domoNome, setDomoNome] = useState(localStorage.getItem('domo_nome') || 'DOMO');
-  const [domoSlogan, setDomoSlogan] = useState(localStorage.getItem('domo_slogan') || 'Gestão canina de ponta a ponta');
-  const [domoCor, setDomoCor] = useState(localStorage.getItem('domo_cor') || '#085041');
-  const [domoLogo, setDomoLogo] = useState(localStorage.getItem('domo_logo') || '');
+  const [domoNome, setDomoNome] = useState('DOMO');
+  const [domoSlogan, setDomoSlogan] = useState('Gestão canina de ponta a ponta');
+  const [domoCor, setDomoCor] = useState('#085041');
+  const [domoLogo, setDomoLogo] = useState('');
   
   // Animation/Feedback states
   const [salvoComSucesso, setSalvoComSucesso] = useState(false);
   const [showPaws, setShowPaws] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Technical configuration state
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,19 +57,14 @@ const Settings: React.FC<SettingsProps> = ({
   const [syncing, setSyncing] = useState<'none' | 'push' | 'pull'>('none');
 
   useEffect(() => {
-    // Read from localStorage to fill initial values on mount
-    const savedNome = localStorage.getItem('domo_nome');
-    if (savedNome) setDomoNome(savedNome);
-    
-    const savedSlogan = localStorage.getItem('domo_slogan');
-    if (savedSlogan) setDomoSlogan(savedSlogan);
-    
-    const savedCor = localStorage.getItem('domo_cor');
-    if (savedCor) setDomoCor(savedCor);
-    
-    const savedLogo = localStorage.getItem('domo_logo');
-    if (savedLogo) setDomoLogo(savedLogo);
-  }, []);
+    if (!tenantLoading) {
+      setDomoNome(nome);
+      setDomoSlogan(slogan);
+      setDomoCor(cor);
+      setDomoLogo(logo || '');
+      setIsLoading(false);
+    }
+  }, [nome, cor, logo, slogan, tenantLoading]);
 
   useEffect(() => {
     setLocalSheetsUrl(sheetsUrl);
@@ -96,7 +95,7 @@ const Settings: React.FC<SettingsProps> = ({
     setDomoLogo('');
   };
 
-  const handleSaveBrand = (e: React.FormEvent) => {
+  const handleSaveBrand = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!domoNome.trim()) {
@@ -104,18 +103,17 @@ const Settings: React.FC<SettingsProps> = ({
       return;
     }
 
-    // Save brand properties to localStorage
-    localStorage.setItem('domo_nome', domoNome.trim());
-    localStorage.setItem('domo_slogan', domoSlogan.trim());
-    localStorage.setItem('domo_cor', domoCor);
-    localStorage.setItem('domo_logo', domoLogo);
+    // Save brand properties using state management hook
+    await salvar({
+      nome: domoNome.trim(),
+      cor: domoCor,
+      logo: domoLogo,
+      slogan: domoSlogan.trim()
+    });
 
     // Trigger sweet bouncing paws animations
     setShowPaws(true);
     setSalvoComSucesso(true);
-
-    // Broadcast a custom event 'domoBrandingChanged' so other components can choose to update dynamically!
-    window.dispatchEvent(new Event('domoBrandingChanged'));
 
     setTimeout(() => {
       setSalvoComSucesso(false);
@@ -161,7 +159,7 @@ const Settings: React.FC<SettingsProps> = ({
     alert('Configurações da Z-API salvas com sucesso!');
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     localStorage.removeItem('kahu_checklists');
     localStorage.removeItem('kahu_master_pets');
     localStorage.removeItem('kahu_groups');
@@ -173,6 +171,14 @@ const Settings: React.FC<SettingsProps> = ({
     localStorage.removeItem('domo_slogan');
     localStorage.removeItem('domo_cor');
     localStorage.removeItem('domo_logo');
+    localStorage.removeItem('domo_slug');
+
+    await salvar({
+      nome: 'DOMO',
+      cor: '#085041',
+      slogan: 'Gestão canina de ponta a ponta',
+      logo: ''
+    });
     
     alert('Sistema reiniciado com sucesso! Todos os dados e marcas personalizadas foram apagados.');
     window.location.href = '#/';
@@ -339,6 +345,20 @@ const Settings: React.FC<SettingsProps> = ({
     data.sort((a, b) => new Date(b['Data/Hora']).getTime() - new Date(a['Data/Hora']).getTime());
     exportToCSV(data, 'Kahu_Relatorio_Consolidado', ['Data/Hora', 'Pet', 'Tipo', 'Evento', 'Detalhes']);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F0FAF6] flex flex-col items-center justify-center p-4">
+        <div className="text-7xl animate-bounce mb-6 select-none text-[#085041]">🐾</div>
+        <h1 className="text-3xl font-black tracking-tighter" style={{ color: domoCor }}>
+          {domoNome}
+        </h1>
+        <p className="font-bold animate-pulse mt-2 uppercase text-[10px] tracking-widest text-[#085041]">
+          Sincronizando os Ajustes...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F0FAF6] py-10 px-4">

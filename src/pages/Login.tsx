@@ -48,6 +48,8 @@ const Login: React.FC = () => {
         msg = 'E-mail ou senha incorretos.';
       } else if (err.code === 'auth/too-many-requests') {
         msg = 'Muitas tentativas fracassadas. Tente mais tarde.';
+      } else if (err.code === 'auth/configuration-not-found') {
+        msg = '⚠️ O método de login por "E-mail/Senha" não está ativado no seu Console do Firebase. Vá em Firebase Console > Authentication > Sign-in method e ative "E-mail/Senha" para este projeto (kahu-caree).';
       } else if (err.message) {
         msg = err.message;
       }
@@ -128,9 +130,9 @@ const Login: React.FC = () => {
           </div>
 
           {errorStatus && (
-            <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest text-center animate-pulse line-clamp-2 px-2">
+            <div className="text-rose-600 text-xs font-bold text-center bg-rose-50 border border-rose-200 rounded-2xl p-3 animate-pulse px-4">
               {errorStatus}
-            </p>
+            </div>
           )}
 
           {successStatus && (
