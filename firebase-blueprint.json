@@ -32,12 +32,53 @@
         }
       },
       "required": ["tenant_id", "nome", "cor_primaria", "slug", "atualizado_em"]
+    },
+    "Pet": {
+      "title": "Pet",
+      "description": "Pet profile, routine, and tutor access settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pet_nome": { "type": "string" },
+        "tutor_nome": { "type": "string" },
+        "telefone": { "type": "string" },
+        "dia_semana": { "type": "string" },
+        "tutorAccessToken": { "type": "string" },
+        "tutorAccessEnabled": { "type": "boolean" },
+        "tutorAccessCreatedAt": { "type": "string", "format": "date-time" },
+        "tutorAccessUpdatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "pet_nome"]
+    },
+    "TutorAccessLink": {
+      "title": "Tutor Access Link",
+      "description": "Secure access mapping for public pet profiles",
+      "type": "object",
+      "properties": {
+        "crecheId": { "type": "string" },
+        "petId": { "type": "string" },
+        "petNome": { "type": "string" },
+        "tutorNome": { "type": "string" },
+        "tutorWhatsapp": { "type": "string" },
+        "ativo": { "type": "boolean" },
+        "criadoEm": { "type": "string", "format": "date-time" },
+        "atualizadoEm": { "type": "string", "format": "date-time" }
+      },
+      "required": ["crecheId", "petId", "ativo"]
     }
   },
   "firestore": {
     "/tenants/{tenantId}": {
       "schema": "Tenant",
       "description": "Collection storing white-label brand definitions"
+    },
+    "/pets/{petId}": {
+      "schema": "Pet",
+      "description": "Collection storing individual pet profiles"
+    },
+    "/tutorAccessLinks/{token}": {
+      "schema": "TutorAccessLink",
+      "description": "Secure tokens mapped to public pet profiles"
     }
   }
 }

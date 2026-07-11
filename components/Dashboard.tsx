@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, ChecklistEntry, PetGroup, Medication, MedicationLog, HotelStay } from '../types';
 import { useTenant } from '../src/hooks/useTenant';
+import { collection, query, where, onSnapshot, doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { db, auth, isFirebaseConfigured } from '../src/firebase';
 import { getStatusColor, getStatusEmoji, calculateStatus } from '../utils/status';
 import { isPetOnDay } from '../utils/date';
 import { getGeneratedMessage } from '../utils/messages';
@@ -55,6 +57,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [selectedDay, setSelectedDay] = useState<string>(() => {
     const today = new Date().getDay();
     const dayMap: Record<number, string> = {
+      0: 'Domingo',
       1: 'Segunda',
       2: 'Terça',
       3: 'Quarta',
@@ -94,23 +97,63 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Pending tutor registrations list
   const [pendentes, setPendentes] = useState<any[]>([]);
+  const [editingPending, setEditingPending] = useState<any | null>(null);
+  const [editingPendingIndex, setEditingPendingIndex] = useState<number | null>(null);
 
   useEffect(() => {
+    let active = true;
+    let unsubscribeSnapshot: (() => void) | null = null;
+
     const loadPendings = () => {
       const stored = localStorage.getItem('domo_cadastros_pendentes');
-      if (stored) {
+      if (stored && !unsubscribeSnapshot) {
         try {
           setPendentes(JSON.parse(stored));
         } catch (e) {
           console.error("Erro canino ao carregar cadastros públicos:", e);
         }
-      } else {
+      } else if (!unsubscribeSnapshot) {
         setPendentes([]);
       }
     };
-    loadPendings();
+
+    // If Firebase is configured and user is logged in, subscribe to live pending registrations
+    const setupFirebaseSubscription = () => {
+      if (isFirebaseConfigured && db && auth.currentUser) {
+        const pendentesRef = collection(db, 'cadastros_pendentes');
+        const q = query(pendentesRef, where('tenant_id', '==', auth.currentUser.uid));
+
+        unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+          if (!active) return;
+          const fetchedPendings: any[] = [];
+          snapshot.forEach((docSnap) => {
+            fetchedPendings.push({
+              ...docSnap.data(),
+              id: docSnap.id,
+            });
+          });
+          setPendentes(fetchedPendings);
+          // Also sync to local storage for consistency/offline
+          localStorage.setItem('domo_cadastros_pendentes', JSON.stringify(fetchedPendings));
+          window.dispatchEvent(new Event('domoPendingRegistrationsChanged'));
+        }, (error) => {
+          console.error("Erro ao escutar cadastros pendentes:", error);
+          loadPendings();
+        });
+      } else {
+        loadPendings();
+      }
+    };
+
+    setupFirebaseSubscription();
+
     window.addEventListener('domoPendingRegistrationsChanged', loadPendings);
-    return () => window.removeEventListener('domoPendingRegistrationsChanged', loadPendings);
+
+    return () => {
+      active = false;
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+      window.removeEventListener('domoPendingRegistrationsChanged', loadPendings);
+    };
   }, []);
 
   interface LiveToast {
@@ -359,7 +402,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const pendingAlertCount = useMemo(() => medsTodayList.filter(item => item.status === 'pending').length, [medsTodayList]);
 
-  const NAV_DAYS = ['Todos', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const NAV_DAYS = ['Todos', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 
   const dayCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -545,20 +588,20 @@ const Dashboard: React.FC<DashboardProps> = ({
 
 
     // 6. Multi-tenant public register approvals awaiting review
-    if (pendentes.length > 0) {
+    pendentes.forEach((ped, idx) => {
       alerts.push({
-        id: `pending_reg_count`,
+        id: `pending_reg_${ped.id || idx}`,
         type: 'pending_register',
-        title: `🆕 Fichas de Cadastro Pendentes`,
-        description: `Existem ${pendentes.length} novas fichas enviadas por tutores esperando aprovação.`,
-        emoji: '🐾',
-        colorClass: 'from-violet-50 to-fuchsia-50 border-violet-200 text-violet-900',
-        actionText: 'Revisar Fichas',
+        title: `📥 Novo cadastro recebido`,
+        description: `Novo cadastro recebido: ${ped.pet_nome}`,
+        emoji: '📥',
+        colorClass: 'from-amber-50 to-orange-50 border-amber-200 text-orange-950',
+        actionText: 'Revisar Ficha',
         onAction: () => {
           setShowApprovalsModal(true);
         }
       });
-    }
+    });
 
     return alerts;
   }, [hotelStays, searchDate, checklistsForDate, filteredPets, medications, medicationLogs, pendentes, selectedDay]);
@@ -755,7 +798,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   // Fast approve public forms
-  const handleApproveForm = (index: number) => {
+  const handleApproveForm = async (index: number) => {
     const target = pendentes[index];
     if (!target) return;
 
@@ -784,7 +827,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       sede_pos_creche: 'Não',
       escore_corporal: 'Ideal',
       observacoes: target.observacoes || 'Importado de cadastro público.',
-      peso_pet: '10kg'
+      peso_pet: '10kg',
+      foto: target.foto || ''
     };
 
     onUpdatePet(newPet);
@@ -794,18 +838,184 @@ const Dashboard: React.FC<DashboardProps> = ({
     setPendentes(updated);
     localStorage.setItem('domo_cadastros_pendentes', JSON.stringify(updated));
     window.dispatchEvent(new Event('domoPendingRegistrationsChanged'));
+
+    if (isFirebaseConfigured && db && target.id) {
+      try {
+        const pendDocRef = doc(db, 'cadastros_pendentes', target.id);
+        await deleteDoc(pendDocRef);
+      } catch (err) {
+        console.error("Erro ao deletar pendente do Firestore:", err);
+      }
+    }
+
     alert(`O pet ${target.pet_nome} foi adicionado com sucesso!`);
   };
 
-  const handleRejectForm = (index: number) => {
-    if (window.confirm(`Apagar pré-cadastro de ${pendentes[index].pet_nome}?`)) {
+  const handleRejectForm = async (index: number) => {
+    const target = pendentes[index];
+    if (!target) return;
+
+    if (window.confirm(`Apagar pré-cadastro de ${target.pet_nome}?`)) {
       const updated = [...pendentes];
       updated.splice(index, 1);
       setPendentes(updated);
       localStorage.setItem('domo_cadastros_pendentes', JSON.stringify(updated));
       window.dispatchEvent(new Event('domoPendingRegistrationsChanged'));
+
+      if (isFirebaseConfigured && db && target.id) {
+        try {
+          const pendDocRef = doc(db, 'cadastros_pendentes', target.id);
+          await deleteDoc(pendDocRef);
+        } catch (err) {
+          console.error("Erro ao deletar pendente do Firestore:", err);
+        }
+      }
     }
   };
+
+  const handleSavePendingEdit = async (updatedData: any) => {
+    if (editingPendingIndex === null || !editingPending) return;
+    
+    const updatedPendings = [...pendentes];
+    updatedPendings[editingPendingIndex] = updatedData;
+    
+    setPendentes(updatedPendings);
+    localStorage.setItem('domo_cadastros_pendentes', JSON.stringify(updatedPendings));
+    window.dispatchEvent(new Event('domoPendingRegistrationsChanged'));
+    
+    if (isFirebaseConfigured && db && updatedData.id) {
+      try {
+        const pendDocRef = doc(db, 'cadastros_pendentes', updatedData.id);
+        await setDoc(pendDocRef, updatedData);
+      } catch (err) {
+        console.error("Erro ao atualizar pendente no Firestore:", err);
+      }
+    }
+    
+    setEditingPending(null);
+    setEditingPendingIndex(null);
+  };
+
+  // CONDICIONAL: 0 pets → empty state | >0 pets → dashboard
+  if (pets.length === 0) {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500 text-left">
+        <style>{`
+          @keyframes bouncePaw {
+            0%, 100% {
+              transform: translateY(0) scale(1) rotate(0deg);
+            }
+            30% {
+              transform: translateY(-12px) scale(1.1) rotate(15deg);
+            }
+            50% {
+              transform: translateY(-15px) scale(1.1) rotate(-15deg);
+            }
+            70% {
+              transform: translateY(-12px) scale(1.1) rotate(10deg);
+            }
+          }
+          .animate-bounce-paw {
+            animation: bouncePaw 1.4s infinite ease-in-out;
+            display: inline-block;
+          }
+        `}</style>
+
+        {/* HEADER SECTION WITH INTEGRATED RECOVERY AND CONTROLS */}
+        <div className="bg-white rounded-[40px] p-8 border border-emerald-100/40 shadow-xl relative overflow-visible">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full -mr-28 -mt-28 blur-3xl"></div>
+          
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative z-10">
+            <div>
+              <div className="flex items-center gap-3">
+                {domoLogo ? (
+                  <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 p-1.5 flex items-center justify-center shadow-inner shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
+                    <img src={domoLogo} alt="Logo" className="w-full h-full object-contain rounded-lg" referrerPolicy="no-referrer" />
+                  </div>
+                ) : (
+                  <span className="text-4xl animate-bounce-paw">🐾</span>
+                )}
+                <div>
+                  <h1 className="text-4xl font-black tracking-tighter" style={{ color: domoCor }}>
+                    Matilha {domoNome}
+                  </h1>
+                  <p className="text-slate-400 font-extrabold text-xs uppercase tracking-widest mt-1">Painel Central de Gerenciamento e Escala canina</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mt-4">
+                <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">ATIVOS: 0</span>
+                <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">ESCALA: Nenhuma</span>
+                {lastSync && (
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 cursor-pointer hover:text-emerald-600 transition-all flex items-center gap-1">
+                    <span>☁️</span> Último sync: {lastSync}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="bg-emerald-50/70 py-2.5 px-4 rounded-2xl border border-emerald-100 flex items-center gap-3">
+                <div className="flex flex-col text-right">
+                  <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-0.5">DATA DO DIÁRIO</span>
+                  <input
+                    type="date"
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                    className="bg-transparent text-emerald-800 font-extrabold outline-none text-xs cursor-pointer select-none border-b border-transparent focus:border-emerald-400"
+                  />
+                </div>
+                <Calendar className="w-4 h-4 text-emerald-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-xl text-center max-w-2xl mx-auto space-y-8 animate-in fade-in zoom-in duration-300">
+          <div className="space-y-4">
+            <span className="text-6xl animate-bounce-paw block">👋</span>
+            <h2 className="text-3xl font-black text-[#085041] tracking-tight uppercase">👋 VAMOS COMEÇAR!</h2>
+            <p className="text-slate-500 font-medium text-base max-w-md mx-auto leading-relaxed">
+              Nenhum pet cadastrado ainda. Vá para{' '}
+              <strong className="text-emerald-700 font-extrabold">CADASTRO</strong> e adicione seu primeiro pet para começar a gerenciar refeições, medicações e hospedagem.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/cadastro')}
+            className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm uppercase tracking-widest rounded-3xl transition-all shadow-lg hover:shadow-xl shadow-emerald-500/20 active:scale-95 border-b-4 border-emerald-700 inline-flex items-center gap-2"
+          >
+            IR PARA CADASTRO →
+          </button>
+
+          <div className="border-t border-dashed border-slate-100 pt-8">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+              O que você verá após adicionar um pet
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-lg mx-auto">
+              <div className="p-3.5 bg-[#FAF9F5] border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-1">
+                <span className="text-2xl">🍖</span>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Refeições</span>
+              </div>
+              <div className="p-3.5 bg-[#FAF9F5] border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-1">
+                <span className="text-2xl">💊</span>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Medicações</span>
+              </div>
+              <div className="p-3.5 bg-[#FAF9F5] border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-1">
+                <span className="text-2xl">🏨</span>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Hospedagem</span>
+              </div>
+              <div className="p-3.5 bg-[#FAF9F5] border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-1">
+                <span className="text-2xl">📬</span>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Notificações</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
@@ -1215,21 +1425,12 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* DASHBOARD STATISTICS OVERVIEW */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        {/* Card 1: Refeições */}
         <div className="bg-gradient-to-br from-[#085041] to-[#043329] text-white rounded-[32px] p-6 shadow-xl relative overflow-hidden group">
           <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mb-10 blur-xl group-hover:bg-white/10 transition-colors"></div>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">CÃES ESCALADOS HOJE</span>
-            <Users className="w-5 h-5 text-emerald-300" />
-          </div>
-          <p className="text-4xl font-extrabold text-white leading-none mt-2">{countPresent}</p>
-          <p className="text-[10px] font-extrabold text-[#9EE5CC] mt-2 uppercase tracking-wide">Peludinhos esperados para este dia de semana</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-[32px] p-6 shadow-xl relative overflow-hidden group">
-          <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mb-10 blur-xl group-hover:bg-white/10 transition-colors"></div>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#B3C8FF]">REFEIÇÕES CHECADAS</span>
-            <CheckSquare className="w-5 h-5 text-[#B3C8FF]" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">🍖 REFEIÇÕES</span>
+            <CheckSquare className="w-5 h-5 text-emerald-300" />
           </div>
           <div className="flex items-end gap-2.5 mt-2">
             <p className="text-4xl font-extrabold text-white leading-none">{countCheckedFeedings}</p>
@@ -1241,17 +1442,42 @@ const Dashboard: React.FC<DashboardProps> = ({
               style={{ width: `${countPresent > 0 ? (countCheckedFeedings / countPresent) * 100 : 0}%` }}
             ></div>
           </div>
-          <p className="text-[10px] font-extrabold text-[#B3C8FF] mt-2 uppercase tracking-wide">Checklist de alimentação hoje ({countPresent > 0 ? Math.round((countCheckedFeedings / countPresent) * 100) : 0}% concluído)</p>
+          <p className="text-[10px] font-extrabold text-[#9EE5CC] mt-2 uppercase tracking-wide">Refeições registradas hoje</p>
         </div>
 
+        {/* Card 2: Medicações */}
+        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-[32px] p-6 shadow-xl relative overflow-hidden group">
+          <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mb-10 blur-xl group-hover:bg-white/10 transition-colors"></div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#B3C8FF]">💊 MEDICAÇÕES</span>
+            <Users className="w-5 h-5 text-[#B3C8FF]" />
+          </div>
+          <div className="flex items-end gap-2.5 mt-2">
+            <p className="text-4xl font-extrabold text-white leading-none">
+              {medsTodayList.filter(item => item.status === 'given').length}
+            </p>
+            <p className="text-slate-400 font-black text-sm">
+              / {medsTodayList.length}
+            </p>
+          </div>
+          <div className="w-full bg-white/10 h-1.5 rounded-full mt-3 overflow-hidden">
+            <div 
+              className="bg-indigo-400 h-full rounded-full transition-all duration-700"
+              style={{ width: `${medsTodayList.length > 0 ? (medsTodayList.filter(item => item.status === 'given').length / medsTodayList.length) * 100 : 0}%` }}
+            ></div>
+          </div>
+          <p className="text-[10px] font-extrabold text-[#B3C8FF] mt-2 uppercase tracking-wide">Medicações aplicadas</p>
+        </div>
+
+        {/* Card 3: Hospedagem */}
         <div className="bg-gradient-to-br from-purple-900 to-indigo-950 text-white rounded-[32px] p-6 shadow-xl relative overflow-hidden group">
           <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mb-10 blur-xl group-hover:bg-white/10 transition-colors"></div>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-pink-300">HÓSPEDES NO HOTEL</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-pink-300">🏨 HOSPEDAGEM</span>
             <Building2 className="w-5 h-5 text-pink-300" />
           </div>
           <p className="text-4xl font-extrabold text-white leading-none mt-2">{countInHotel}</p>
-          <p className="text-[10px] font-extrabold text-[#FBCFE8] mt-2 uppercase tracking-wide">Cães instalados e pernoitando na creche hoje</p>
+          <p className="text-[10px] font-extrabold text-[#FBCFE8] mt-2 uppercase tracking-wide">Pets hospedados na creche hoje</p>
         </div>
       </div>
 
@@ -1602,6 +1828,52 @@ const Dashboard: React.FC<DashboardProps> = ({
                       {pet.tipo_alimentacao}
                     </span>
                   </div>
+
+                  {/* INDICADORES COMPORTAMENTO, ALERTAS E AMIGOS */}
+                  {(pet.alertas_importantes && pet.alertas_importantes.length > 0) && (
+                    <div className="flex flex-wrap gap-1 mt-1 border-t border-slate-100 pt-2">
+                      <span className="text-[8px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-md px-1.5 py-0.5 uppercase tracking-wider">ALERTAS:</span>
+                      {pet.alertas_importantes.map(alertTag => (
+                        <span key={alertTag} className="text-[8px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100/50 uppercase tracking-tighter">🚨 {alertTag}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {(pet.perfil_comportamental && pet.perfil_comportamental.length > 0) && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {pet.perfil_comportamental.map(trait => (
+                        <span key={trait} className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100/30 uppercase tracking-tighter">🧠 {trait}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {(pet.amizades && pet.amizades.length > 0) && (
+                    <div className="flex items-center gap-1.5 mt-1 border-t border-slate-100/50 pt-2">
+                      <span className="text-[8px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-md px-1.5 py-0.5 uppercase tracking-wider">AMIGOS:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {pet.amizades.map(friend => (
+                          <span key={friend.id} className="text-[8px] font-extrabold text-slate-600 bg-white border border-slate-150 px-1.5 py-0.5 rounded-md shadow-sm" title={`${friend.nivelAmizade}: ${friend.observacao}`}>❤️ {friend.petAmigo}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* INDICADOR DE REVISÃO MENSAL */}
+                  {pet.ultimo_responsavel_atualizacao ? (
+                    <div className="flex items-center justify-between gap-1.5 mt-2 border-t border-slate-100/50 pt-2 text-[8px] font-bold text-slate-400 uppercase tracking-widest">
+                      <span>Ficha Mestre:</span>
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 font-extrabold shrink-0" title={`Revisado por ${pet.ultimo_responsavel_atualizacao} em ${pet.ultima_data_atualizacao}`}>
+                        📋 {pet.ultimo_mes_atualizacao} ({pet.ultimo_responsavel_atualizacao})
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-1.5 mt-2 border-t border-slate-100/50 pt-2 text-[8px] font-bold text-slate-400 uppercase tracking-widest">
+                      <span>Ficha Mestre:</span>
+                      <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100 font-extrabold shrink-0">
+                        ⚠️ Pendente
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1881,21 +2153,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-wrap md:flex-nowrap flex-shrink-0">
                         <button
                           type="button"
                           onClick={() => handleApproveForm(idx)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider transition active:scale-95"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider transition active:scale-95 flex items-center gap-1"
                         >
                           Aprovar ✓
                         </button>
                         <button
                           type="button"
+                          onClick={() => {
+                            setEditingPending(ped);
+                            setEditingPendingIndex(idx);
+                          }}
+                          className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider transition active:scale-95 flex items-center gap-1"
+                        >
+                          📝 Editar
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleRejectForm(idx)}
-                          className="bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl w-8 h-8 flex items-center justify-center font-bold border border-rose-100 transition active:scale-95"
+                          className="bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider border border-rose-100 transition active:scale-95 flex items-center gap-1"
                           title="Recusar"
                         >
-                          ✕
+                          🗑️ Recusar/Arquivar
                         </button>
                       </div>
                     </div>
@@ -2001,6 +2283,155 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </button>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PENDING EDIT MODAL */}
+      {editingPending && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-xl rounded-[36px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center text-left">
+              <div>
+                <h3 className="text-xl font-black text-slate-800 leading-none">Editar Pré-Cadastro</h3>
+                <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Ajuste os dados de {editingPending.pet_nome} antes de aprovar</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => { setEditingPending(null); setEditingPendingIndex(null); }}
+                className="w-10 h-10 bg-white border border-slate-100 rounded-full flex items-center justify-center shadow-sm hover:text-rose-500 font-bold hover:bg-rose-50 transition-all text-slate-400"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Nome do Pet</label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none"
+                  value={editingPending.pet_nome}
+                  onChange={(e) => setEditingPending({ ...editingPending, pet_nome: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Raça</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none"
+                    value={editingPending.raca}
+                    onChange={(e) => setEditingPending({ ...editingPending, raca: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Aniversário / Idade</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none"
+                    value={editingPending.data_aniversario || ''}
+                    onChange={(e) => setEditingPending({ ...editingPending, data_aniversario: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Nome do Tutor</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none"
+                    value={editingPending.tutor_nome}
+                    onChange={(e) => setEditingPending({ ...editingPending, tutor_nome: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp / Telefone</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none"
+                    value={editingPending.telefone}
+                    onChange={(e) => setEditingPending({ ...editingPending, telefone: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Escala de Dias da Semana</label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none"
+                  value={editingPending.dia_semana}
+                  onChange={(e) => setEditingPending({ ...editingPending, dia_semana: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Possui Alergia?</label>
+                  <select
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none bg-white"
+                    value={editingPending.possui_alergia}
+                    onChange={(e) => setEditingPending({ ...editingPending, possui_alergia: e.target.value })}
+                  >
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Tipo de Alimentação</label>
+                  <select
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none bg-white"
+                    value={editingPending.tipo_alimentacao}
+                    onChange={(e) => setEditingPending({ ...editingPending, tipo_alimentacao: e.target.value })}
+                  >
+                    <option value="Padrão">Padrão</option>
+                    <option value="Especial">Especial</option>
+                  </select>
+                </div>
+              </div>
+
+              {editingPending.possui_alergia === 'Sim' && (
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Detalhes da Alergia / Restrições</label>
+                  <textarea
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none h-20"
+                    value={editingPending.alimentos_proibidos || ''}
+                    onChange={(e) => setEditingPending({ ...editingPending, alimentos_proibidos: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {editingPending.tipo_alimentacao === 'Especial' && (
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Instruções de Alimentação Especial</label>
+                  <textarea
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-semibold focus:border-emerald-500 focus:outline-none h-20"
+                    value={editingPending.quantidade_oferecida || ''}
+                    onChange={(e) => setEditingPending({ ...editingPending, quantidade_oferecida: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => { setEditingPending(null); setEditingPendingIndex(null); }}
+                className="px-5 py-3 bg-white text-slate-700 font-bold border border-slate-200 hover:bg-slate-55 rounded-xl text-xs uppercase tracking-wider transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSavePendingEdit(editingPending)}
+                className="px-6 py-3 bg-emerald-600 text-white font-black hover:bg-emerald-700 rounded-xl text-xs uppercase tracking-wider transition shadow-md"
+              >
+                Salvar Alterações
+              </button>
             </div>
           </div>
         </div>

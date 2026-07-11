@@ -24,7 +24,7 @@ const Registration: React.FC<RegistrationProps> = ({ pets }) => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-emerald-900 mb-1">Cadastro Geral</h2>
-          <p className="text-emerald-700/70 font-medium">Gestão das Fichas Mestres dos 158 pets 📂</p>
+          <p className="text-emerald-700/70 font-medium">Gestão das Fichas Mestres dos {pets.length} pets 📂</p>
         </div>
         <div className="relative group w-full md:w-80">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-sky-100 rounded-full flex items-center justify-center text-sky-600 shadow-sm border border-sky-200">

@@ -35,11 +35,61 @@ export interface Pet {
   // Notas
   observacoes: string;
   
+  // Perfil Comportamental & Rotina (Novos blocos)
+  perfil_comportamental?: string[];
+  rotina_preferencias?: string;
+  rotina_coisas_nao_gosta?: string;
+  rotina_pode_petisco?: string;
+  rotina_pode_grupo?: string;
+  rotina_descansar_separado?: string;
+  rotina_restricao_rotina?: string;
+
+  // Alertas Importantes
+  alertas_importantes?: string[];
+
+  // Atividades Favoritas
+  atividades_favoritas?: string[];
+
+  // Amizades do Pet
+  amizades?: PetFriendship[];
+
+  // Controle de Revisão Mensal
+  ultimo_responsavel_atualizacao?: string;
+  ultimo_mes_atualizacao?: string;
+  ultima_data_atualizacao?: string;
+  revisoes_mensais?: PetRevision[];
+
   // Campos legados (manter compatibilidade se necessário)
   raca?: string;
   tutor_nome?: string;
   telefone?: string;
   foto?: string; // Base64 or image URL
+  data_aniversario?: string;
+  nao_sei_aniversario?: boolean;
+  
+  // Acesso do Tutor (Link Seguro)
+  tutorAccessToken?: string;
+  tutorAccessEnabled?: boolean;
+  tutorAccessCreatedAt?: string;
+  tutorAccessUpdatedAt?: string;
+  tenant_id?: string;
+}
+
+export interface PetFriendship {
+  id: string;
+  mesAno: string; // Ex: "Julho/2026"
+  petAmigo: string; // Ex: "Thor"
+  nivelAmizade: string; // Ex: "Muito amigo"
+  observacao: string; // Ex: "Brincaram juntos várias vezes"
+}
+
+export interface PetRevision {
+  id: string;
+  mesAno: string; // Ex: "Julho/2026"
+  responsavel: string; // Quem mexeu/salvou
+  dataRevisao: string; // Data em formato ISO ou simples "07/07/2026"
+  status: string; // Ex: "Atualizado", "Sem alterações"
+  observacao: string;
 }
 
 export interface ChecklistEntry {
@@ -100,7 +150,7 @@ export interface HotelStay {
   active: boolean;
 }
 
-export const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', '-'];
+export const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo', '-'];
 
 export const FECAL_SCORE_LABELS: Record<number, string> = {
   1: '1 - Muito Duro',

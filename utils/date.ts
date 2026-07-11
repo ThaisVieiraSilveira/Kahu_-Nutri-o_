@@ -1,7 +1,7 @@
 
 import { Pet } from '../types';
 
-export const DAYS_ORDER = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+export const DAYS_ORDER = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
 
 export const normalize = (s: string) => 
   s.normalize("NFD")

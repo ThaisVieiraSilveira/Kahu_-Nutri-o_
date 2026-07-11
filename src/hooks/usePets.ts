@@ -234,5 +234,36 @@ export function usePets() {
     }
   };
 
-  return { pets, loading, addPet, updatePet, deletePet };
+  const loadPetsFromFirestore = async () => {
+    const user = auth.currentUser;
+    if (!isFirebaseConfigured || !db || !user) {
+      console.warn("Firebase não configurado ou usuário não autenticado ao tentar recarregar pets.");
+      return [];
+    }
+    try {
+      console.log("UID logado:", user.uid);
+      console.log("Buscando pets com tenant_id:", user.uid);
+      console.log('Recarregando pets do Firestore...');
+      const petsRef = collection(db, 'pets');
+      const q = query(petsRef, where('tenant_id', '==', user.uid));
+      const querySnapshot = await getDocs(q);
+      const fetchedPets: Pet[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        fetchedPets.push({
+          ...data,
+          id: docSnap.id,
+        } as Pet);
+      });
+      console.log("Pets carregados:", fetchedPets.length);
+      setPets(fetchedPets);
+      localStorage.setItem(LOCAL_STORAGE_KEYS.pets, JSON.stringify(fetchedPets));
+      return fetchedPets;
+    } catch (err) {
+      console.error("Erro ao recarregar pets do Firestore:", err);
+      throw err;
+    }
+  };
+
+  return { pets, loading, addPet, updatePet, deletePet, loadPetsFromFirestore };
 }

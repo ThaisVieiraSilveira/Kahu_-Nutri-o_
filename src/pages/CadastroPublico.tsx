@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, AlertCircle, Apple, Check, Phone, User, Heart, ChevronRight, Copy, Share2 } from 'lucide-react';
+import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { db, isFirebaseConfigured } from '../firebase';
 
 export const CadastroPublico: React.FC = () => {
   // Brand States
@@ -7,13 +9,19 @@ export const CadastroPublico: React.FC = () => {
   const [domoSlogan, setDomoSlogan] = useState('Gestão canina de ponta a ponta');
   const [domoCor, setDomoCor] = useState('#085041');
   const [domoLogo, setDomoLogo] = useState('');
+  const [tenantId, setTenantId] = useState('local-user');
 
   // Form Fields
   const [nomePet, setNomePet] = useState('');
+  const [dataAniversario, setDataAniversario] = useState('');
+  const [naoSeiAniversario, setNaoSeiAniversario] = useState(false);
   const [raca, setRaca] = useState('');
+  const [quantidadeAlimentacao, setQuantidadeAlimentacao] = useState('');
   const [tutorNome, setTutorNome] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [tipoFrequencia, setTipoFrequencia] = useState('Creche Fixa'); // 'Creche Fixa' | 'Dias de Hotel'
   const [diasSelecionados, setDiasSelecionados] = useState<string[]>([]);
+  const [detalhesHotel, setDetalhesHotel] = useState('');
   const [photo, setPhoto] = useState<string>('');
   const [dragActive, setDragActive] = useState(false);
 
@@ -64,8 +72,10 @@ export const CadastroPublico: React.FC = () => {
   const [hasAlergia, setHasAlergia] = useState<boolean | null>(null);
   const [detalhesAlergia, setDetalhesAlergia] = useState('');
 
-  const [hasDieta, setHasDieta] = useState<boolean | null>(null);
-  const [detalhesDieta, setDetalhesDieta] = useState('');
+  // Alimentação states
+  const [tipoAlimentacao, setTipoAlimentacao] = useState<'padrao' | 'especial' | null>(null);
+  const [qualRacaoPadrao, setQualRacaoPadrao] = useState('');
+  const [detalhesAlimentacaoEspecial, setDetalhesAlimentacaoEspecial] = useState('');
 
   // UI States
   const [isLoading, setIsLoading] = useState(true);
@@ -86,12 +96,40 @@ export const CadastroPublico: React.FC = () => {
     const savedLogo = localStorage.getItem('domo_logo');
     if (savedLogo) setDomoLogo(savedLogo);
 
-    // Short loading simulation for doggy paws!
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 800);
+    // Extract slug from URL hash or search parameter to resolve the correct creche
+    const hash = window.location.hash;
+    const queryString = hash.includes('?') ? hash.split('?')[1] : window.location.search;
+    const searchParams = new URLSearchParams(queryString);
+    const crecheSlug = searchParams.get('creche');
 
-    return () => clearTimeout(timer);
+    const fetchTenantBranding = async () => {
+      if (crecheSlug && isFirebaseConfigured && db) {
+        try {
+          const tenantsRef = collection(db, 'tenants');
+          const q = query(tenantsRef, where('slug', '==', crecheSlug));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const tenantDoc = querySnapshot.docs[0];
+            const tenantData = tenantDoc.data();
+            setDomoNome(tenantData.nome || 'DOMO');
+            setDomoSlogan(tenantData.slogan || 'Gestão canina de ponta a ponta');
+            setDomoCor(tenantData.cor || '#085041');
+            setDomoLogo(tenantData.logo || '');
+            setTenantId(tenantDoc.id);
+          }
+        } catch (err) {
+          console.error("Erro ao buscar branding do tenant no Firestore:", err);
+        }
+      }
+    };
+
+    fetchTenantBranding().then(() => {
+      // Short loading simulation for doggy paws!
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 800);
+      return () => clearTimeout(timer);
+    });
   }, []);
 
   const toggleDia = (dia: string) => {
@@ -123,70 +161,78 @@ export const CadastroPublico: React.FC = () => {
     setWhatsapp(formatted);
   };
 
-  const diasDisponiveis = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const diasDisponiveis = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
-    // Field Validations
+    // Field Validations matching user requirements exactly
     if (!nomePet.trim()) {
-      setErrorMsg('Por favor, informe o nome do pet!');
-      return;
-    }
-    if (!raca.trim()) {
-      setErrorMsg('Por favor, informe a raça do pet!');
+      setErrorMsg('Preencha o nome do pet para continuar.');
       return;
     }
     if (!tutorNome.trim()) {
-      setErrorMsg('Por favor, informe o nome do tutor!');
+      setErrorMsg('Preencha o nome do tutor para continuar.');
       return;
     }
     if (!whatsapp.trim()) {
-      setErrorMsg('Por favor, informe o telefone/WhatsApp do tutor!');
+      setErrorMsg('Preencha o WhatsApp do tutor para continuar.');
       return;
     }
-    if (diasSelecionados.length === 0) {
-      setErrorMsg('Selecione pelo menos um dia da semana para frequência!');
-      return;
-    }
+    
+    // Alergias validation
     if (hasAlergia === null) {
       setErrorMsg('Indique se o pet possui alguma alergia ou restrição.');
       return;
     }
     if (hasAlergia && !detalhesAlergia.trim()) {
-      setErrorMsg('Por favor, detalhe quais são as alergias ou restrições.');
+      setErrorMsg('Explique a alergia ou restrição do pet para continuar.');
       return;
     }
-    if (hasDieta === null) {
-      setErrorMsg('Indique se o pet segue alguma dieta ou regras de alimentação especiais.');
+
+    // Alimentação validation
+    if (tipoAlimentacao === null) {
+      setErrorMsg('Selecione o tipo de alimentação do pet (Ração Padrão ou Alimentação Especial).');
       return;
     }
-    if (hasDieta && !detalhesDieta.trim()) {
-      setErrorMsg('Por favor, detalhe as instruções da dieta/nutrição do pet.');
+    if (tipoAlimentacao === 'padrao' && !qualRacaoPadrao.trim()) {
+      setErrorMsg('Por favor, informe qual a ração padrão do pet.');
+      return;
+    }
+    if (tipoAlimentacao === 'especial' && !detalhesAlimentacaoEspecial.trim()) {
+      setErrorMsg('Explique a alimentação do pet para continuar.');
       return;
     }
 
     // Build standard compatible payload
+    const finalDias = tipoFrequencia === 'Dias de Hotel' 
+      ? (detalhesHotel.trim() ? `Hotel: ${detalhesHotel.trim()}` : 'Hotel (dias não informados)') 
+      : (diasSelecionados.length > 0 ? diasSelecionados.join(', ') : 'Creche (dias não informados)');
+
+    const cadastroId = `C_PEND_${Date.now()}`;
     const novoCadastro = {
-      id: `C_PEND_${Date.now()}`,
+      id: cadastroId,
+      tenant_id: tenantId,
       pet_nome: nomePet.trim(),
-      raca: raca.trim(),
+      raca: raca.trim() || 'SRD',
+      data_aniversario: naoSeiAniversario ? 'Não sei informar' : (dataAniversario || 'Não informada'),
+      nao_sei_aniversario: naoSeiAniversario,
       tutor_nome: tutorNome.trim(),
       telefone: whatsapp.trim(),
-      dia_semana: diasSelecionados.join(', '),
+      dia_semana: finalDias,
       possui_alergia: hasAlergia ? 'Sim' : 'Não',
-      alimentos_proibidos: hasAlergia ? detalhesAlergia.trim() : '',
+      alimentos_proibidos: hasAlergia ? detalhesAlergia.trim() : 'Não possui',
       foto: photo,
       possui_doenca: 'Não',
       doenca_qual: '',
       comportamento_alimentar: '',
       precisa_estimulo: 'Não',
-      tipo_alimentacao: hasDieta ? 'Especial' : 'Padrão',
-      quantidade_oferecida: hasDieta ? detalhesDieta.trim() : '',
+      tipo_alimentacao: tipoAlimentacao === 'especial' ? 'Alimentação Especial' : 'Ração Padrão',
+      quantidade_oferecida: quantidadeAlimentacao.trim() || 'Não informada',
       quantidade_aproximada: '',
-      marca_racao: '',
-      especificacao_racao: '',
+      marca_racao: tipoAlimentacao === 'padrao' ? qualRacaoPadrao.trim() : '',
+      especificacao_racao: tipoAlimentacao === 'especial' ? detalhesAlimentacaoEspecial.trim() : '',
       oferece_extras: 'Sim',
       ingestao_agua: 'Ideal',
       interesse_agua: 'Médio',
@@ -194,7 +240,7 @@ export const CadastroPublico: React.FC = () => {
       sede_pos_creche: 'Não',
       escore_corporal: 'Ideal',
       observacoes: 'Pré-cadastro enviado publicamente pelo tutor.',
-      status: 'Pendente',
+      status: 'Cadastro pendente de aprovação',
       data_cadastro: new Date().toISOString()
     };
 
@@ -206,6 +252,16 @@ export const CadastroPublico: React.FC = () => {
       
       // Dispatch custom event if other modules are watching
       window.dispatchEvent(new Event('domoPendingRegistrationsChanged'));
+
+      // Salvar no Firebase se estiver configurado e ativo
+      if (isFirebaseConfigured && db) {
+        try {
+          const pendDocRef = doc(db, 'cadastros_pendentes', cadastroId);
+          await setDoc(pendDocRef, novoCadastro);
+        } catch (fbErr) {
+          console.error('Erro ao salvar no Firestore cadastros_pendentes:', fbErr);
+        }
+      }
 
       // Sincronizar com Planilha se configurado
       const sheetsWebhookUrl = localStorage.getItem('kahu_sheets_url') || '';
@@ -301,14 +357,20 @@ export const CadastroPublico: React.FC = () => {
             onClick={() => {
               setIsSuccess(false);
               setNomePet('');
+              setDataAniversario('');
+              setNaoSeiAniversario(false);
               setRaca('');
+              setQuantidadeAlimentacao('');
               setTutorNome('');
               setWhatsapp('');
+              setTipoFrequencia('Creche Fixa');
               setDiasSelecionados([]);
+              setDetalhesHotel('');
               setHasAlergia(null);
               setDetalhesAlergia('');
-              setHasDieta(null);
-              setDetalhesDieta('');
+              setTipoAlimentacao(null);
+              setQualRacaoPadrao('');
+              setDetalhesAlimentacaoEspecial('');
             }}
             className="w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all text-white hover:scale-[1.02] shadow-lg"
             style={{ 
@@ -359,6 +421,14 @@ export const CadastroPublico: React.FC = () => {
         {/* Main Public Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-[40px] p-8 shadow-2xl border border-slate-100 text-left space-y-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: domoCor }}></div>
+
+          <div className="bg-emerald-50/40 rounded-2xl p-4 border border-emerald-100/30 flex items-start gap-2.5">
+            <span className="text-lg">⏱️</span>
+            <div>
+              <p className="text-xs text-slate-800 font-black tracking-tight leading-normal">Leva menos de 2 minutos.</p>
+              <p className="text-[11px] text-slate-500 font-bold tracking-tight leading-normal">Preencha apenas o essencial para cuidarmos melhor do seu pet.</p>
+            </div>
+          </div>
 
           {errorMsg && (
             <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs font-black uppercase tracking-wider rounded-2xl p-4 flex items-center gap-3">
@@ -420,7 +490,7 @@ export const CadastroPublico: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Nome do Pet</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Nome do Pet <span className="text-rose-500">*Obrigatório</span></label>
                 <input
                   type="text"
                   placeholder="Ex: Kahu"
@@ -432,7 +502,34 @@ export const CadastroPublico: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Raça</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Data de Aniversário <span className="text-slate-400 font-bold">(Opcional)</span></label>
+                  <div className="space-y-2">
+                    <input
+                      type="date"
+                      disabled={naoSeiAniversario}
+                      value={dataAniversario}
+                      onChange={(e) => setDataAniversario(e.target.value)}
+                      className={`w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-slate-700 text-sm outline-none transition-all ${
+                        naoSeiAniversario ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'hover:bg-slate-100/50 focus:bg-white focus:border-slate-300'
+                      }`}
+                    />
+                    <label className="flex items-center gap-2 cursor-pointer select-none ml-1">
+                      <input
+                        type="checkbox"
+                        checked={naoSeiAniversario}
+                        onChange={(e) => {
+                          setNaoSeiAniversario(e.target.checked);
+                          if (e.target.checked) setDataAniversario('');
+                        }}
+                        className="rounded border-slate-300 text-[#085041] focus:ring-[#085041]"
+                      />
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Não sei informar a data</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Raça <span className="text-slate-400 font-bold">(Opcional)</span></label>
                   <input
                     type="text"
                     placeholder="Ex: Golden Retriever"
@@ -441,9 +538,22 @@ export const CadastroPublico: React.FC = () => {
                     className="w-full px-4 py-3.5 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border-2 border-slate-100 focus:border-slate-300 outline-none rounded-xl font-bold text-slate-700 transition-all text-sm"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Quantidade <span className="text-slate-400 font-bold">(Opcional, ex: de ração/refeição)</span></label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 150g, 1 xícara"
+                    value={quantidadeAlimentacao}
+                    onChange={(e) => setQuantidadeAlimentacao(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border-2 border-slate-100 focus:border-slate-300 outline-none rounded-xl font-bold text-slate-700 transition-all text-sm"
+                  />
+                </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">WhatsApp do Tutor (ddd+número)</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">WhatsApp do Tutor (ddd+número) <span className="text-rose-500">*Obrigatório</span></label>
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                     <input
@@ -458,7 +568,7 @@ export const CadastroPublico: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Nome Completo do Tutor</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Nome Completo do Tutor <span className="text-rose-500">*Obrigatório</span></label>
                 <input
                   type="text"
                   placeholder="Ex: Carlos Silva"
@@ -470,37 +580,96 @@ export const CadastroPublico: React.FC = () => {
             </div>
           </div>
 
-          {/* SECTION 2: Dias da Semana */}
-          <div className="pt-4 border-t border-slate-50">
+          {/* SECTION 2: Frequência e Agenda */}
+          <div className="pt-4 border-t border-slate-50 space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Calendar className="h-4 h-4 text-slate-400" />
-              <h3 className="font-black text-xs text-slate-700 uppercase tracking-widest">2. Frequência na Creche</h3>
+              <h3 className="font-black text-xs text-slate-700 uppercase tracking-widest">2. Frequência e Agenda <span className="text-slate-400 font-bold">(Opcional)</span></h3>
             </div>
-            <p className="text-[10px] text-slate-400 font-bold mb-3 uppercase tracking-wider">
-              Selecione quais dias da semana o pet frequentará
-            </p>
+            
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">
+                O pet frequentará como Creche Fixa ou por Dias de Hotel?
+              </label>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFrequencia('Creche Fixa');
+                    setDetalhesHotel('');
+                  }}
+                  className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border-2 transition-all ${
+                    tipoFrequencia === 'Creche Fixa' ? 'text-emerald-700 border-emerald-400 bg-emerald-50/50' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100/50'
+                  }`}
+                  style={{
+                    borderColor: tipoFrequencia === 'Creche Fixa' ? domoCor : undefined,
+                    color: tipoFrequencia === 'Creche Fixa' ? domoCor : undefined,
+                    backgroundColor: tipoFrequencia === 'Creche Fixa' ? domoCor + '0C' : undefined
+                  }}
+                >
+                  🏫 Creche Fixa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoFrequencia('Dias de Hotel');
+                    setDiasSelecionados([]);
+                  }}
+                  className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border-2 transition-all ${
+                    tipoFrequencia === 'Dias de Hotel' ? 'text-emerald-700 border-emerald-400 bg-emerald-50/50' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100/50'
+                  }`}
+                  style={{
+                    borderColor: tipoFrequencia === 'Dias de Hotel' ? domoCor : undefined,
+                    color: tipoFrequencia === 'Dias de Hotel' ? domoCor : undefined,
+                    backgroundColor: tipoFrequencia === 'Dias de Hotel' ? domoCor + '0C' : undefined
+                  }}
+                >
+                  🏨 Dias de Hotel
+                </button>
+              </div>
+            </div>
 
-            <div className="flex flex-wrap gap-2">
-              {diasDisponiveis.map(dia => {
-                const isSelected = diasSelecionados.includes(dia);
-                return (
-                  <button
-                    key={dia}
-                    type="button"
-                    onClick={() => toggleDia(dia)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2 flex items-center gap-1.5"
-                    style={{
-                      borderColor: isSelected ? domoCor : '#f1f5f9',
-                      backgroundColor: isSelected ? domoCor + '0C' : '#f8fafc',
-                      color: isSelected ? domoCor : '#64748b'
-                    }}
-                  >
-                    {isSelected && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: domoCor }}></div>}
-                    {dia}
-                  </button>
-                );
-              })}
-            </div>
+            {tipoFrequencia === 'Creche Fixa' ? (
+              <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  Selecione os dias da semana para a creche fixa:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {diasDisponiveis.map(dia => {
+                    const isSelected = diasSelecionados.includes(dia);
+                    return (
+                      <button
+                        key={dia}
+                        type="button"
+                        onClick={() => toggleDia(dia)}
+                        className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2 flex items-center gap-1.5"
+                        style={{
+                          borderColor: isSelected ? domoCor : '#f1f5f9',
+                          backgroundColor: isSelected ? domoCor + '0C' : '#f8fafc',
+                          color: isSelected ? domoCor : '#64748b'
+                        }}
+                      >
+                        {isSelected && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: domoCor }}></div>}
+                        {dia}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 animate-in slide-in-from-top-1 duration-200">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  Descreva os dias ou o período planejado para o hotel:
+                </label>
+                <input
+                  type="text"
+                  placeholder="EX: De 15/07 a 22/07, ou finais de semana"
+                  value={detalhesHotel}
+                  onChange={(e) => setDetalhesHotel(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border-2 border-slate-100 focus:border-slate-300 outline-none rounded-xl font-bold text-slate-700 transition-all text-sm"
+                />
+              </div>
+            )}
           </div>
 
           {/* SECTION 3: Alergias e Restrições */}
@@ -567,46 +736,62 @@ export const CadastroPublico: React.FC = () => {
 
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">
-                O pet segue alguma dieta específica na creche? (Alimentação natural, horário próprio, etc)
+                Qual é a alimentação do pet?
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setHasDieta(true)}
+                  onClick={() => {
+                    setTipoAlimentacao('padrao');
+                    setDetalhesAlimentacaoEspecial('');
+                  }}
                   className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border-2 transition-all ${
-                    hasDieta === true ? 'bg-amber-50 text-amber-600 border-amber-300' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100/50'
+                    tipoAlimentacao === 'padrao' ? 'bg-emerald-50 text-emerald-600 border-emerald-300' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100/50'
                   }`}
+                  style={{
+                    borderColor: tipoAlimentacao === 'padrao' ? domoCor : undefined,
+                    color: tipoAlimentacao === 'padrao' ? domoCor : undefined,
+                    backgroundColor: tipoAlimentacao === 'padrao' ? domoCor + '0D' : undefined
+                  }}
                 >
-                  🥩 Sim, Nutrição Especial
+                  🟢 Ração Padrão
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setHasDieta(false);
-                    setDetalhesDieta('');
+                    setTipoAlimentacao('especial');
+                    setQualRacaoPadrao('');
                   }}
                   className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border-2 transition-all ${
-                    hasDieta === false ? 'bg-emerald-50 text-emerald-600 border-emerald-300' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100/50'
+                    tipoAlimentacao === 'especial' ? 'bg-amber-50 text-amber-600 border-amber-300' : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100/50'
                   }`}
-                  style={{
-                    borderColor: hasDieta === false ? domoCor : undefined,
-                    color: hasDieta === false ? domoCor : undefined,
-                    backgroundColor: hasDieta === false ? domoCor + '0D' : undefined
-                  }}
                 >
-                  🟢 Alimentação Padrão / Ração
+                  🥩 Alimentação Especial
                 </button>
               </div>
             </div>
 
-            {hasDieta && (
+            {tipoAlimentacao === 'padrao' && (
               <div className="animate-in slide-in-from-top-2 duration-300">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Detalhes da alimentação (Horários, porção, restrições):</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Qual ração o pet consome? <span className="text-rose-500">*Obrigatório</span></label>
+                <input
+                  type="text"
+                  placeholder="EX: Royal Canin Golden Retriever, Premier Seleção Natural, etc."
+                  value={qualRacaoPadrao}
+                  onChange={(e) => setQualRacaoPadrao(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border-2 border-slate-100 focus:border-slate-300 outline-none rounded-xl font-bold text-slate-700 transition-all text-sm"
+                />
+              </div>
+            )}
+
+            {tipoAlimentacao === 'especial' && (
+              <div className="animate-in slide-in-from-top-2 duration-300">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Explique a alimentação do pet <span className="text-rose-500">*Obrigatório</span></label>
                 <textarea
                   rows={3}
-                  placeholder="EX: Alimentação Natural pesando 200g servidos às 12h morno."
-                  value={detalhesDieta}
-                  onChange={(e) => setDetalhesDieta(e.target.value)}
+                  placeholder="EX: Alimentação Natural (AN) 200g servidos morno, ou Ração especial hipoalergênica às 12h."
+                  value={detalhesAlimentacaoEspecial}
+                  onChange={(e) => setDetalhesAlimentacaoEspecial(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border-2 border-slate-100 focus:border-slate-300 outline-none rounded-xl font-bold text-slate-700 transition-all text-sm"
                 />
               </div>
