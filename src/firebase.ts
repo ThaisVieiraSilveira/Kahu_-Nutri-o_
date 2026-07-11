@@ -12,6 +12,8 @@ const firebaseConfig = {
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || '',
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
   appId: env.VITE_FIREBASE_APP_ID || '',
+  databaseURL: env.VITE_FIREBASE_DATABASE_URL || '',
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || '',
 };
 
 // Check if variables exist & are not empty/empty placeholders
