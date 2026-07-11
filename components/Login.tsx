@@ -26,7 +26,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       if (isFirebaseConfigured) {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       } else {
-        await auth.signInWithEmailAndPassword(email.trim(), password);
+        await (auth as any).signInWithEmailAndPassword(email.trim(), password);
       }
       onLogin();
     } catch (err: any) {

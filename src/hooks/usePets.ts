@@ -130,7 +130,7 @@ export function usePets() {
   const addPet = async (petData: Omit<Pet, 'id'> & { id?: string }) => {
     const user = auth.currentUser;
     // We generate a deterministic ID if not provided, or a generic clean ID using Firestore or random ID.
-    const newId = petData.id || doc(collection(db || {}, 'pets')).id || Math.random().toString(36).substr(2, 9);
+    const newId = petData.id || doc(collection(db, 'pets')).id || Math.random().toString(36).substr(2, 9);
     
     const newPet: Pet = {
       ...petData,

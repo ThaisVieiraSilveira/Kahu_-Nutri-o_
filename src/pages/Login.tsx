@@ -35,7 +35,7 @@ const Login: React.FC = () => {
       if (isFirebaseConfigured) {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       } else {
-        await auth.signInWithEmailAndPassword(email.trim(), password);
+        await (auth as any).signInWithEmailAndPassword(email.trim(), password);
       }
       navigate('/');
     } catch (err: any) {
@@ -74,7 +74,7 @@ const Login: React.FC = () => {
       if (isFirebaseConfigured) {
         await sendPasswordResetEmail(auth, email.trim());
       } else {
-        await auth.sendPasswordResetEmail(email.trim());
+        await (auth as any).sendPasswordResetEmail(email.trim());
       }
       setSuccessStatus('E-mail de recuperação enviado com sucesso!');
     } catch (err: any) {

@@ -108,7 +108,7 @@ export function useRegistros() {
 
   const addRegistro = async (registroData: Omit<Registro, 'id' | 'tenant_id' | 'criado_em'>) => {
     const user = auth.currentUser;
-    const newId = doc(collection(db || {}, 'registros')).id || Math.random().toString(36).substr(2, 9);
+    const newId = doc(collection(db, 'registros')).id || Math.random().toString(36).substr(2, 9);
     
     const newRegistro: Registro = {
       ...registroData,

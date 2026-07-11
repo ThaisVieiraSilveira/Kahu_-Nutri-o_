@@ -132,6 +132,10 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet, onSa
   const [tutorLinkMessage, setTutorLinkMessage] = useState<string | null>(null);
   const [tutorLinkError, setTutorLinkError] = useState<string | null>(null);
 
+  const [firebaseTestMessage, setFirebaseTestMessage] = useState<string | null>(null);
+  const [firebaseTestError, setFirebaseTestError] = useState<string | null>(null);
+  const [isTestingFirebase, setIsTestingFirebase] = useState(false);
+
   const handleImportDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -774,6 +778,51 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet, onSa
     }
   };
 
+  const handleTestFirebase = async () => {
+    setFirebaseTestMessage(null);
+    setFirebaseTestError(null);
+    setIsTestingFirebase(true);
+
+    try {
+      // 1. verificar auth.currentUser
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("Usuário não autenticado. Faça login novamente.");
+      }
+
+      // 2. criar pets/TESTE001
+      const petDocRef = doc(db, 'pets', 'TESTE001');
+      await setDoc(petDocRef, {
+        pet_nome: 'Cachorro Teste Firebase',
+        tutor_nome: 'Tutor de Teste',
+        telefone: '11999999999',
+        tenant_id: user.uid,
+        tutorAccessToken: 'teste-token',
+        tutorAccessEnabled: true,
+        tutorAccessCreatedAt: serverTimestamp(),
+        tutorAccessUpdatedAt: serverTimestamp(),
+        atualizadoEm: serverTimestamp()
+      }, { merge: true });
+
+      // 3. criar tutorAccessLinks/teste-token
+      const linkRef = doc(db, 'tutorAccessLinks', 'teste-token');
+      await setDoc(linkRef, {
+        petId: 'TESTE001',
+        crecheId: user.uid,
+        ativo: true,
+        criadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp()
+      }, { merge: true });
+
+      setFirebaseTestMessage("Sucesso: documentos 'pets/TESTE001' e 'tutorAccessLinks/teste-token' criados e salvos no Firestore!");
+    } catch (err: any) {
+      console.error("Erro no teste do Firebase:", err);
+      setFirebaseTestError(`Erro real: ${err.message || String(err)}`);
+    } finally {
+      setIsTestingFirebase(false);
+    }
+  };
+
   const handleApprove = async (index: number) => {
     const target = pendentes[index];
     if (!target) return;
@@ -913,6 +962,27 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet, onSa
         </div>
       )}
 
+      {/* Toast Notification for Firebase Test actions */}
+      {(firebaseTestMessage || firebaseTestError) && (
+        <div className="fixed top-6 right-6 z-[120] max-w-sm w-full bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 animate-in slide-in-from-top duration-300">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">{firebaseTestError ? '⚠️' : '✅'}</span>
+            <div className="flex-grow">
+              <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">{firebaseTestError ? 'Erro Firebase' : 'Sucesso Firebase'}</h4>
+              <p className="text-xs text-slate-600 font-semibold mt-1 leading-relaxed border-t border-slate-50 pt-1">
+                {firebaseTestError || firebaseTestMessage}
+              </p>
+            </div>
+            <button 
+              onClick={() => { setFirebaseTestMessage(null); setFirebaseTestError(null); }}
+              className="text-slate-400 hover:text-slate-600 text-xs font-black p-1 hover:bg-slate-50 rounded-full transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HEADER ADMINISTRATIVE */}
       <div className="bg-white rounded-[32px] p-8 border border-slate-150 shadow-sm space-y-6">
         {/* Linha 1: Título e Contador */}
@@ -969,6 +1039,15 @@ const CadastroLooker: React.FC<CadastroLookerProps> = ({ pets, onDeletePet, onSa
           >
             <FileSpreadsheet size={16} className="text-emerald-600" />
             <span>Importar planilha</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={handleTestFirebase}
+            disabled={isTestingFirebase}
+            className="px-5 py-3.5 bg-indigo-50 hover:bg-indigo-100 border-2 border-indigo-200 text-indigo-700 rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span>⚡ {isTestingFirebase ? 'Testando...' : 'Testar Firebase'}</span>
           </button>
         </div>
 
